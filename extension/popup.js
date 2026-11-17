@@ -1,4 +1,4 @@
-const output = document.querySelector('output');
+const output = document.querySelector('#status');
 const toggle = document.querySelector('#toggle');
 const voice = document.querySelector('#voice');
 const rate = document.querySelector('#rate');
@@ -12,12 +12,18 @@ style.onchange = () => localStorage.setItem('style', style.value);
 voice.onchange = () => localStorage.setItem('voice', voice.value);
 
 async function loadVoices() {
+  const group = document.createElement('optgroup');
+  group.label = 'Supertonic · 이 컴퓨터에서 생성';
+  for (const gender of ['F', 'M']) for (let n = 1; n <= 5; n++) {
+    group.append(new Option((gender === 'F' ? '여성' : '남성') + ' ' + n, 'local:' + gender + n));
+  }
+  voice.prepend(group);
   const voices = await chrome.tts.getVoices();
   for (const v of voices.filter(v => /^ko(?:-|$)/i.test(v.lang || ''))) {
     const key = JSON.stringify([v.extensionId || '', v.voiceName, v.lang]);
     voice.add(new Option(v.voiceName, key));
   }
-  voice.value = localStorage.getItem('voice') || '';
+  voice.value = localStorage.getItem('voice') || 'local:F1';
   if (voice.selectedIndex < 0) voice.value = '';
 }
 let enabled = false;
@@ -34,6 +40,7 @@ async function command(type) {
     if (request !== sequence) return;
     enabled = reply.enabled;
     voice.disabled = style.disabled = rate.disabled = enabled;
+    document.querySelector('#preview').disabled = enabled;
     toggle.textContent = enabled ? '더빙 끄기' : '더빙 켜기';
     toggle.setAttribute('aria-pressed', String(enabled));
     toggle.disabled = false;
@@ -55,3 +62,19 @@ loadVoices().finally(() => {
   command('status');
   setInterval(() => { if (!updating) command('status'); }, 800);
 });
+
+const previewStatus = document.querySelector('#preview-status');
+chrome.runtime.onMessage.addListener(msg => {
+  if (msg.target === 'preview-status') previewStatus.textContent = msg.text;
+});
+document.querySelector('#preview').onclick = async () => {
+  previewStatus.textContent = '로컬 음성 준비 중';
+  try {
+    const result = await chrome.runtime.sendMessage({type: 'preview', voice: voice.value, rate: Number(rate.value)});
+    if (result.error) previewStatus.textContent = result.error;
+  } catch (error) { previewStatus.textContent = error.message; }
+};
+document.querySelector('#preview-stop').onclick = async () => {
+  await chrome.runtime.sendMessage({type: 'preview-stop'});
+  previewStatus.textContent = '미리듣기 중지';
+};
