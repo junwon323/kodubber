@@ -17,3 +17,13 @@ if [ "$os" = darwin ] && [ "${1:-}" != "--no-gui" ]; then
   open -R "$PWD/extension" || :
   open -a "Google Chrome" 'chrome://extensions/' || echo 'Chrome 주소창에서 chrome://extensions 를 직접 여세요.'
 fi
+
+if [ "$os" = linux ] && [ "${1:-}" != "--no-gui" ]; then
+  echo 'Chrome에서 개발자 모드 → 압축해제된 확장 프로그램을 로드를 누르고 열린 extension 폴더를 선택하세요.'
+  xdg-open "$PWD/extension" >/dev/null 2>&1 &
+  if command -v google-chrome >/dev/null 2>&1; then
+    google-chrome 'chrome://extensions/' >/dev/null 2>&1 &
+  else
+    echo 'Chrome 주소창에서 chrome://extensions 를 직접 여세요.'
+  fi
+fi
