@@ -11,5 +11,10 @@ exit /b 1
 :install
 "%~dp0bin\host-windows-%arch%.exe" install
 set "result=%errorlevel%"
+if not "%result%"=="0" goto done
+echo Chrome에서 개발자 모드를 켜고 탐색기에서 선택된 extension 폴더를 확장 관리 화면으로 끌어다 놓으세요.
+start "" explorer.exe /select,"%~dp0extension"
+start "" chrome.exe "chrome://extensions/"
+:done
 pause
 exit /b %result%

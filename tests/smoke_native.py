@@ -25,7 +25,7 @@ if __name__ == "__main__":
         if sys.platform == "darwin":
             env.update(HOME=temp, CODEX_HOME=os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
             directory = Path(temp) / "Library/Application Support/Google/Chrome/NativeMessagingHosts"
-        subprocess.run([project / "install.command"], env=env, check=True)
+        subprocess.run([project / "install.command", "--no-gui"], env=env, check=True)
         manifest = json.loads((directory / "com.codex.korean_dubber.json").read_text())
         assert manifest["allowed_origins"] == ["chrome-extension://dnmkapgfepfbfeeecepaebdgkpolcmik/"]
         host = manifest["path"]

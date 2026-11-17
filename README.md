@@ -16,7 +16,7 @@ Google Chrome과 로그인한 Codex CLI를 준비하세요. 설치와 더빙에�
 
    Windows에서는 일반 PowerShell에서 `codex login status`가 동작해야 합니다. Windows용 설치기는 현재 사용자의 Chrome에 연결 정보를 등록합니다. WSL 내부의 Linux용 Codex는 이 설치기에서 사용할 수 없습니다.
 
-2. Chrome 주소창에 `chrome://extensions`를 입력하고 **개발자 모드 → 압축해제된 확장 프로그램을 로드**를 선택하세요. 설치 완료 메시지에 표시된 `extension` 폴더를 여세요.
+2. Mac과 Windows에서는 설치기가 Chrome 확장 관리 화면과 `extension` 폴더가 선택된 Finder 또는 탐색기를 엽니다. Chrome에서 **개발자 모드**를 켜고 선택된 폴더를 관리 화면으로 끌어다 놓으세요. 수동 등록은 Chrome에서 `chrome://extensions` → **개발자 모드 → 압축해제된 확장 프로그램을 로드**를 누르고 설치 메시지에 표시된 폴더를 선택하면 됩니다.
 3. 유튜브 강의를 새로고침하고 자막(CC)을 켠 뒤 확장에서 **더빙 켜기**를 누르세요.
 
 기존 설치를 업데이트할 때는 `git pull` 후 운영체제에 맞는 설치 파일을 실행하고 Chrome 확장 관리 화면에서 새로고침하세요. 저장소 경로를 옮겼을 때도 다시 등록하고 새 경로의 확장을 로드하세요. 한국어 음성을 찾지 못한다는 메시지가 나오면 Chrome에서 사용할 수 있는 한국어 TTS 엔진이 필요합니다.
