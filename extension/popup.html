@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><title>강의 한국어 더빙</title>
+<style>
+body{font:14px system-ui,sans-serif;width:270px;padding:12px;color:#182634}
+h1{font-size:19px}label{display:block;margin:16px 0}input{margin-top:6px;width:100%}
+button{font:inherit;padding:7px 14px;border:1px solid #aab5bf;border-radius:6px;background:white}
+#start{background:#184e46;color:white}output{display:block;margin-top:12px;line-height:1.5}
+</style>
+<h1>강의 한국어 더빙</h1>
+<p>유튜브에서 원본 언어 자막(CC)을 켜세요.</p>
+<label>자막 파일로 대체 (선택)<input id="file" type="file" accept=".vtt,.srt"></label>
+<button id="start">더빙 시작</button> <button id="stop">종료</button>
+<output aria-live="polite"></output>
+<script src="popup.js"></script></html>
