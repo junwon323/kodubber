@@ -1,5 +1,6 @@
 let session = null;
 let revision = 0;
+let enabled = false;
 let status = '대기 중';
 const videoId = () => new URL(location.href).searchParams.get('v');
 
@@ -30,6 +31,7 @@ async function captions(v, id) {
 
 function finish(message) {
   revision++;
+  enabled = false;
   const s = session;
   session = null;
   if (s) {
@@ -43,12 +45,14 @@ function finish(message) {
 
 async function start(file) {
   finish('자막 확인 중');
+  enabled = true;
   const version = revision;
   const video = document.querySelector('video.html5-main-video') || document.querySelector('video');
   const id = videoId();
   if (!video || !id) throw Error('유튜브 강의 영상 페이지를 열어 주세요.');
   const rows = Captions.group(file ? Captions.vtt(file) : await captions(video, id));
-  if (version !== revision || videoId() !== id) return;
+  if (version !== revision) return;
+  if (videoId() !== id) return finish('영상이 변경되어 종료했습니다.');
   if (!rows.length) throw Error('시간 정보가 있는 자막을 찾지 못했습니다.');
   const port = chrome.runtime.connect({name: 'dub'});
   const s = session = {video, port, events: new AbortController(), wasMuted: video.muted, mutedByUs: false};
@@ -78,14 +82,14 @@ async function start(file) {
       let from = next;
       while (from < rows.length && cache.has(from) && rows[from].start < t + 60) from++;
       if (from < rows.length && !cache.has(from) && (from === next || rows[from].start < t + 60)) {
-        const batch = rows.slice(from, from + 24);
+        const batch = rows.slice(from, from + (cache.size ? 24 : 6));
         pending = true;
         port.postMessage({type: 'translate', start: from, lines: batch.map(r => r.text)});
       }
     }
     if (!active || video.paused || !cache.has(i)) {
       quiet();
-      status = pending ? '자막 번역 중' : '더빙 준비됨';
+      status = pending && !cache.has(next) ? '자막 번역 중' : '더빙 준비됨';
       return;
     }
     if (last === i) return;
@@ -123,13 +127,11 @@ async function start(file) {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  if (msg.type === 'start') {
+  if (msg.type === 'start' && !enabled) {
     const expected = revision + 1;
-    start(msg.file).catch(e => { if (revision === expected) finish(e.message); })
-      .finally(() => reply({status}));
-    return true;
+    start(msg.file).catch(e => { if (revision === expected) finish(e.message); });
   }
   if (msg.type === 'stop') finish('더빙 종료');
-  reply({status});
+  reply({status, enabled});
 });
 window.addEventListener('pagehide', () => finish('더빙 종료'));

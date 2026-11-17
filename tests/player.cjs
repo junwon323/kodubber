@@ -19,7 +19,9 @@ test('subtitle parsing, lookahead, seek, pause, speed and restoring mute', async
   vm.runInContext(script('cues.js'), ctx);
   vm.runInContext(script('player.js'), ctx);
   const file = 'WEBVTT\n\n00:00.000 --> 00:02.000\nBinary\n\n00:02.000 --> 00:04.000\nsearch.\n\n00:05.000 --> 00:08.000\nNext.';
-  await new Promise(resolve => message({type: 'start', file}, {}, resolve));
+  const state = type => new Promise(resolve => message({type, file}, {}, resolve));
+  assert.equal((await state('status')).enabled, false);
+  assert.equal((await state('start')).enabled, true);
   fromWorker({type: 'ready'});
   assert.deepEqual(Array.from(sent.find(m => m.type === 'translate').lines), ['Binary search.', 'Next.']);
   fromWorker({type: 'result', start: 0, lines: ['이진 탐색.', '다음.']});
@@ -38,6 +40,8 @@ test('subtitle parsing, lookahead, seek, pause, speed and restoring mute', async
   video.dispatchEvent(new Event('ratechange'));
   tick();
   assert.equal(sent.at(-1).type, 'speak');
-  message({type: 'stop'}, {}, () => {});
+  assert.equal((await state('stop')).enabled, false);
+  fromWorker({type: 'result', start: 0, lines: ['늦게 도착한 결과']});
+  assert.equal((await state('status')).enabled, false);
   assert.equal(video.muted, false);
 });
