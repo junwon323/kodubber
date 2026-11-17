@@ -25,8 +25,9 @@ const limit = 65536
 const schema = `{"type":"object","properties":{"lines":{"type":"array","items":{"type":"string"}}},"required":["lines"],"additionalProperties":false}`
 
 type config struct {
-	Codex string
-	Path  string
+	Codex      string
+	Path       string
+	Entrypoint string `json:",omitempty"`
 }
 type captions struct {
 	Lines []string `json:"lines"`
@@ -37,6 +38,13 @@ func registerDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
+	}
+	if runtime.GOOS == "windows" {
+		root, err := os.UserCacheDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(root, "KoreanDubber", "NativeMessagingHosts"), nil
 	}
 	if runtime.GOOS == "darwin" {
 		return filepath.Join(home, "Library/Application Support/Google/Chrome/NativeMessagingHosts"), nil
@@ -76,6 +84,22 @@ func install(dir string) error {
 	if err != nil {
 		return err
 	}
+	cfg := config{Codex: codex, Path: os.Getenv("PATH")}
+	if runtime.GOOS == "windows" && !strings.EqualFold(filepath.Ext(codex), ".exe") {
+		// Global npm installations expose a .cmd shim alongside node_modules.
+		cfg.Entrypoint = filepath.Join(filepath.Dir(codex), "node_modules", "@openai", "codex", "bin", "codex.js")
+		node, err := exec.LookPath("node.exe")
+		if err != nil {
+			return errors.New("npm으로 설치한 Codex의 node.exe를 찾을 수 없습니다.")
+		}
+		if _, err := os.Stat(cfg.Entrypoint); err != nil {
+			return errors.New("Windows용 codex.exe 또는 npm 전역 Codex 설치를 확인하세요.")
+		}
+		cfg.Codex, err = filepath.Abs(node)
+		if err != nil {
+			return err
+		}
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -101,12 +125,20 @@ func install(dir string) error {
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	if err = writeJSON(filepath.Join(dir, name+".config"), config{codex, os.Getenv("PATH")}); err != nil {
+	if err = writeJSON(filepath.Join(dir, name+".config"), cfg); err != nil {
 		return err
 	}
 	host := map[string]any{"name": name, "description": "Korean lecture caption translator", "type": "stdio", "path": exe, "allowed_origins": []string{"chrome-extension://" + id + "/"}}
 	if err = writeJSON(filepath.Join(dir, name+".json"), host); err != nil {
 		return err
+	}
+	if runtime.GOOS == "windows" {
+		reg := filepath.Join(os.Getenv("SystemRoot"), "System32", "reg.exe")
+		key := `HKCU\Software\Google\Chrome\NativeMessagingHosts\` + name
+		cmd := exec.Command(reg, "add", key, "/ve", "/t", "REG_SZ", "/d", filepath.Join(dir, name+".json"), "/f")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("Chrome 등록 실패: %w (%s)", err, out)
+		}
 	}
 	fmt.Printf("설치 완료. Chrome에서 chrome://extensions 를 여세요.\n개발자 모드 → 압축해제된 확장 프로그램을 로드 → 다음 폴더 선택\n%s\n", ext)
 	return nil
@@ -143,7 +175,7 @@ func translate(dir string, data []byte) (captions, error) {
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, name+".config"))
 	if err != nil {
-		return c, errors.New("install.command를 다시 실행하세요.")
+		return c, errors.New("운영체제에 맞는 설치 파일을 다시 실행하세요.")
 	}
 	var cfg config
 	if err = json.Unmarshal(raw, &cfg); err != nil || !filepath.IsAbs(cfg.Codex) {
@@ -159,7 +191,11 @@ func translate(dir string, data []byte) (captions, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, cfg.Codex, "exec", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--sandbox", "read-only", "--disable", "shell_tool", "--disable", "apps", "--disable", "plugins", "--disable", "hooks", "-c", `web_search="disabled"`, "--output-schema", "schema", "-o", "result", "-")
+	args := []string{"exec", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--sandbox", "read-only", "--disable", "shell_tool", "--disable", "apps", "--disable", "plugins", "--disable", "hooks", "-c", `web_search="disabled"`, "--output-schema", "schema", "-o", "result", "-"}
+	if cfg.Entrypoint != "" {
+		args = append([]string{cfg.Entrypoint}, args...)
+	}
+	cmd := exec.CommandContext(ctx, cfg.Codex, args...)
 	lines, _ := json.Marshal(c.Lines)
 	cmd.Dir = tmp
 	cmd.Env = append(os.Environ(), "PATH="+cfg.Path)
