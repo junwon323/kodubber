@@ -9,24 +9,47 @@ async function captions(v, id) {
     if (!['subtitles', 'captions'].includes(track.kind) || !track.cues?.length) continue;
     return Captions.normalize(Array.from(track.cues, c => ({start: c.startTime, end: c.endTime, text: c.text})));
   }
-  // Reuse the caption URL requested by this player's CC control, including its signed parameters.
-  for (const entry of performance.getEntriesByType('resource').reverse()) {
-    const url = new URL(entry.name, location.href);
-    if (url.origin !== location.origin || url.pathname !== '/api/timedtext' || url.searchParams.get('v') !== id) continue;
-    try {
-      const response = await fetch(url, {signal: AbortSignal.timeout(5000)});
-      if (!response.ok) continue;
-      const raw = await response.text();
-      if (raw.trimStart().startsWith('WEBVTT')) return Captions.vtt(raw);
-      const events = JSON.parse(raw).events || [];
-      const rows = Captions.normalize(events.filter(e => e.segs).map(e => ({
-        start: e.tStartMs / 1000, end: (e.tStartMs + e.dDurationMs) / 1000,
-        text: e.segs.map(s => s.utf8 || '').join('')
-      })));
-      if (rows.length) return rows;
-    } catch { /* Try an earlier response for the same video. */ }
+  const raw = await new Promise((resolve, reject) => {
+    const request = crypto.randomUUID();
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', receive);
+      reject(Error('자막 수집기가 응답하지 않습니다. 확장과 영상 페이지를 새로고침해 주세요.'));
+    }, 10000);
+    function receive(event) {
+      const msg = event.data;
+      if (event.source !== window || event.origin !== location.origin ||
+          msg?.type !== 'korean-dubber-caption-response' ||
+          msg.request !== request || msg.video !== id) return;
+      clearTimeout(timer);
+      window.removeEventListener('message', receive);
+      if (msg.error) reject(Error(String(msg.error).slice(0, 300)));
+      else if (typeof msg.raw === 'string' && msg.raw.length <= 2_000_000) resolve(msg.raw);
+      else reject(Error('자막 응답 형식이 올바르지 않습니다.'));
+    }
+    window.addEventListener('message', receive);
+    window.postMessage({type: 'korean-dubber-caption-request', request, video: id}, location.origin);
+  });
+  let rows;
+  if (raw.trimStart().startsWith('WEBVTT')) rows = Captions.vtt(raw);
+  else if (raw.trimStart().startsWith('<')) {
+    const xml = new DOMParser().parseFromString(raw, 'text/xml');
+    rows = Captions.normalize(Array.from(xml.querySelectorAll('text, p'), node => {
+      const start = node.hasAttribute('start') ? Number(node.getAttribute('start')) :
+        Number(node.getAttribute('t')) / 1000;
+      const duration = node.hasAttribute('dur') ? Number(node.getAttribute('dur')) :
+        Number(node.getAttribute('d')) / 1000;
+      return {start, end: start + duration, text: node.textContent};
+    }));
+  } else {
+    let data;
+    try { data = JSON.parse(raw); } catch { throw Error('유튜브 자막 응답을 해석하지 못했습니다.'); }
+    rows = Captions.normalize((data.events || []).filter(e => Array.isArray(e.segs)).map(e => ({
+      start: e.tStartMs / 1000, end: (e.tStartMs + e.dDurationMs) / 1000,
+      text: e.segs.map(s => s.utf8 || '').join('')
+    })));
   }
-  throw Error('영상의 자막(CC)을 켜고 다시 시작하거나 VTT 파일을 선택하세요.');
+  if (rows.length) return rows;
+  throw Error('자막 응답에 시간 정보가 없습니다. CC를 껐다 켠 뒤 다시 시도해 주세요.');
 }
 
 function finish(message) {
