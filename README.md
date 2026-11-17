@@ -4,10 +4,18 @@ Chrome에서 유튜브 강의의 시간 자막을 읽고, 컴퓨터에 설치된
 
 ## 설치
 
-1. Linux 또는 macOS에 Google Chrome, Python 3.9 이상, Codex CLI를 준비합니다. 터미널에서 `codex login status`로 로그인을 확인합니다. CLI는 `codex exec --help`에 `--ignore-user-config`, `--ephemeral`, `--output-schema`가 표시되는 버전이 필요합니다.
-2. 저장소 루트에서 `python3 host/install.py`를 실행합니다. 현재 사용자 Chrome에 로컬 번역 프로그램을 등록합니다. 저장소를 옮기면 이 명령을 다시 실행하세요.
-3. Chrome에서 `chrome://extensions`를 열고 **개발자 모드 → 압축해제된 확장 프로그램을 로드**를 선택한 다음 이 저장소의 `extension` 폴더를 엽니다.
-4. Chrome에서 사용할 수 있는 한국어 TTS 음성을 준비합니다. Linux에서는 한국어 음성을 제공하는 Chrome TTS 엔진 확장이 필요할 수 있습니다.
+Google Chrome과 로그인한 Codex CLI를 준비하세요. 설치와 더빙에는 Python, Node.js, Go, 관리자 권한이 필요하지 않습니다. Linux와 macOS의 x86-64 및 ARM64 실행 파일이 저장소에 포함되어 있습니다.
+
+1. 클론한 저장소 폴더에서 다음 명령을 실행하세요. macOS에서는 Finder에서 `install.command`를 더블클릭해도 됩니다.
+
+   ```sh
+   ./install.command
+   ```
+
+2. Chrome 주소창에 `chrome://extensions`를 입력하고 **개발자 모드 → 압축해제된 확장 프로그램을 로드**를 선택하세요. 설치 완료 메시지에 표시된 `extension` 폴더를 여세요.
+3. 유튜브 강의를 새로고침하고 자막(CC)을 켠 뒤 확장에서 **더빙 시작**을 누르세요.
+
+기존 설치를 업데이트할 때는 `git pull` 후 `./install.command`를 실행하고 Chrome 확장 관리 화면에서 새로고침하세요. 저장소 경로를 옮겼을 때도 다시 등록하고 새 경로의 확장을 로드하세요. 한국어 음성을 찾지 못한다는 메시지가 나오면 Chrome에서 사용할 수 있는 한국어 TTS 엔진이 필요합니다.
 
 ## 강의 듣기
 
