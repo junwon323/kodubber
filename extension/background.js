@@ -37,8 +37,11 @@ chrome.runtime.onConnect.addListener(port => {
             send({type: 'result', start: msg.start, lines: result.lines});
           } finally { busy = false; }
         } else if (msg.type === 'speak') {
-          chrome.tts.speak(msg.text, {...(voice.extensionId ? {extensionId: voice.extensionId} : {}), voiceName: voice.voiceName, lang: voice.lang, rate: msg.rate,
-            onEvent: e => { if (e.type === 'error') send({error: e.errorMessage || '음성 재생 실패'}); }});
+          chrome.tts.speak(msg.text, {...(voice.extensionId ? {extensionId: voice.extensionId} : {}), voiceName: voice.voiceName, lang: voice.lang, rate: [0.75, 0.9, 1, 1.1].includes(msg.rate) ? msg.rate : 0.9,
+            onEvent: e => {
+              if (e.type === 'error') send({error: e.errorMessage || '음성 재생 실패'});
+              if (e.type === 'end') send({type: 'speech-end', speechId: msg.speechId});
+            }});
         } else if (msg.type === 'quiet') chrome.tts.stop();
       }
     } catch (err) { send({error: err.message}); }

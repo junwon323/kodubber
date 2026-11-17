@@ -8,7 +8,10 @@ test('subtitle parsing, lookahead, seek, pause, speed and restoring mute', async
   let tick, message, fromWorker;
   const sent = [];
   const video = Object.assign(new EventTarget(), {isConnected: true, currentTime: 0,
-    muted: false, paused: false, playbackRate: 1});
+    muted: false, paused: false, playbackRate: 1,
+    pause() { this.paused = true; this.dispatchEvent(new Event('pause')); },
+    async play() { this.paused = false; }
+  });
   const port = {onMessage: {addListener: fn => fromWorker = fn},
     onDisconnect: {addListener() {}}, postMessage: m => sent.push(m), disconnect() {}};
   const ctx = vm.createContext({URL, AbortController, window: new EventTarget(),
@@ -27,6 +30,18 @@ test('subtitle parsing, lookahead, seek, pause, speed and restoring mute', async
   fromWorker({type: 'result', start: 0, lines: ['이진 탐색.', '다음.']});
   assert.equal(sent.at(-1).text, '이진 탐색.');
   assert.equal(video.muted, true);
+  assert.equal(sent.at(-1).rate, 0.9);
+  const firstSpeech = sent.at(-1);
+  video.currentTime = 5.1;
+  tick();
+  assert.equal(video.paused, true, 'video waits for the complete sentence');
+  assert.equal(sent.at(-1), firstSpeech, 'speech is not interrupted at the next cue');
+  fromWorker({type: 'speech-end', speechId: firstSpeech.speechId});
+  assert.equal(video.paused, false);
+  assert.equal(sent.at(-1).text, '다음.');
+  const count = sent.length;
+  fromWorker({type: 'speech-end', speechId: firstSpeech.speechId});
+  assert.equal(sent.length, count, 'stale completion cannot restart speech');
   video.dispatchEvent(new Event('seeking'));
   video.currentTime = 5.1;
   tick();
@@ -40,6 +55,7 @@ test('subtitle parsing, lookahead, seek, pause, speed and restoring mute', async
   video.dispatchEvent(new Event('ratechange'));
   tick();
   assert.equal(sent.at(-1).type, 'speak');
+  assert.equal(sent.at(-1).rate, 0.9);
   assert.equal((await state('stop')).enabled, false);
   fromWorker({type: 'result', start: 0, lines: ['늦게 도착한 결과']});
   assert.equal((await state('status')).enabled, false);

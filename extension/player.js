@@ -61,12 +61,13 @@ function finish(message) {
     clearInterval(s.timer);
     s.events.abort();
     s.port.disconnect();
+    s.resume?.();
     if (s.mutedByUs) s.video.muted = s.wasMuted;
   }
   status = message;
 }
 
-async function start({file, voice, style}) {
+async function start({file, voice, style, rate}) {
   finish('자막 확인 중');
   enabled = true;
   const version = revision;
@@ -79,12 +80,29 @@ async function start({file, voice, style}) {
   if (!rows.length) throw Error('시간 정보가 있는 자막을 찾지 못했습니다.');
   const port = chrome.runtime.connect({name: 'dub'});
   const s = session = {video, port, events: new AbortController(), wasMuted: video.muted, mutedByUs: false};
+  const speechRate = [0.75, 0.9, 1, 1.1].includes(Number(rate)) ? Number(rate) : 0.9;
   const cache = new Map();
   let heartbeat = 0;
   let last = -1, pending = false, ready = false, talking = false;
+  let held = false, speechId = 0, speechStarted = 0, speechBoundary = Infinity;
+  function hold() {
+    if (!video.paused) {
+      held = true;
+      video.pause();
+    }
+  }
+  function resume() {
+    if (!held) return;
+    held = false;
+    if (video.paused && !video.ended && !video.seeking) {
+      video.play().catch(() => { status = '영상의 재생 버튼을 눌러 주세요.'; });
+    }
+  }
+  s.resume = resume;
   function quiet() {
     if (talking) port.postMessage({type: 'quiet'});
     talking = false;
+    speechId++;
     last = -1;
     if (s.mutedByUs) { video.muted = s.wasMuted; s.mutedByUs = false; }
   }
@@ -110,27 +128,46 @@ async function start({file, voice, style}) {
         port.postMessage({type: 'translate', start: from, lines: batch.map(r => r.text)});
       }
     }
-    if (!active || video.paused || !cache.has(i)) {
-      quiet();
-      status = pending && !cache.has(next) ? '자막 번역 중' : '더빙 준비됨';
+    if (talking) {
+      if (Date.now() - speechStarted > 60000) return finish('음성 완료 신호를 받지 못했습니다. 다른 목소리를 선택해 주세요.');
+      if (t >= speechBoundary) {
+        hold();
+        status = '한국어 설명이 끝나면 영상이 이어집니다';
+      }
       return;
     }
-    if (last === i) return;
+    if (video.paused && !held) return;
+    if (!active) {
+      resume();
+      status = '다음 설명 대기 중';
+      return;
+    }
+    if (!cache.has(i)) {
+      hold();
+      status = '번역 준비 중 · 영상 잠시 멈춤';
+      return;
+    }
+    if (last === i) { resume(); return; }
     last = i;
     const text = cache.get(i);
-    const remaining = (rows[i].end - t) / video.playbackRate;
-    if (remaining < 0.35) { quiet(); return; }
     s.wasMuted = s.mutedByUs ? s.wasMuted : video.muted;
     video.muted = true;
     s.mutedByUs = true;
-    port.postMessage({type: 'speak', text, rate: Math.max(0.9, Math.min(1.6, text.length / (6 * remaining)))});
     talking = true;
+    speechStarted = Date.now();
+    speechBoundary = rows[i + 1]?.start ?? rows[i].end;
+    port.postMessage({type: 'speak', text, rate: speechRate, speechId: ++speechId});
+    resume();
     status = '한국어 더빙 중';
   }
   port.onMessage.addListener(msg => {
     if (session !== s) return;
     if (msg.error) return finish(msg.error);
     if (msg.type === 'ready') ready = true;
+    if (msg.type === 'speech-end' && msg.speechId === speechId) {
+      talking = false;
+      resume();
+    }
     if (msg.type === 'result') {
       msg.lines.forEach((line, n) => cache.set(msg.start + n, line));
       pending = false;
@@ -141,9 +178,9 @@ async function start({file, voice, style}) {
     const reason = chrome.runtime.lastError?.message;
     if (session === s) finish(reason || '연결 종료. 다시 시작해 주세요.');
   });
-  for (const event of ['pause', 'seeking', 'ratechange', 'ended']) {
-    video.addEventListener(event, quiet, {signal: s.events.signal});
-  }
+  video.addEventListener('pause', () => { if (!held) quiet(); }, {signal: s.events.signal});
+  video.addEventListener('seeking', () => { held = false; quiet(); }, {signal: s.events.signal});
+  video.addEventListener('ended', () => { held = false; quiet(); }, {signal: s.events.signal});
   s.timer = setInterval(tick, 180);
   status = '한국어 음성 확인 중';
   port.postMessage({type: 'open', voice, style});

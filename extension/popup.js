@@ -1,6 +1,10 @@
 const output = document.querySelector('output');
 const toggle = document.querySelector('#toggle');
 const voice = document.querySelector('#voice');
+const rate = document.querySelector('#rate');
+rate.value = localStorage.getItem('rate') || '0.9';
+if (!rate.value) rate.value = '0.9';
+rate.onchange = () => localStorage.setItem('rate', rate.value);
 const style = document.querySelector('#style');
 style.value = localStorage.getItem('style') || 'lecture';
 if (!style.value) style.value = 'lecture';
@@ -26,10 +30,10 @@ async function command(type) {
     const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
     const file = document.querySelector('#file').files[0];
     if (type === 'start' && file?.size > 2_000_000) throw Error('2MB 이하의 자막을 선택하세요.');
-    const reply = await chrome.tabs.sendMessage(tab.id, {type, voice: voice.value, style: style.value, file: type === 'start' && file ? await file.text() : null});
+    const reply = await chrome.tabs.sendMessage(tab.id, {type, voice: voice.value, style: style.value, rate: Number(rate.value), file: type === 'start' && file ? await file.text() : null});
     if (request !== sequence) return;
     enabled = reply.enabled;
-    voice.disabled = style.disabled = enabled;
+    voice.disabled = style.disabled = rate.disabled = enabled;
     toggle.textContent = enabled ? '더빙 끄기' : '더빙 켜기';
     toggle.setAttribute('aria-pressed', String(enabled));
     toggle.disabled = false;
