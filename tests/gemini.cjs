@@ -7,7 +7,7 @@ function setup(fetch) {
   const messages = [];
   const context = {self: {postMessage: msg => messages.push(msg)}, fetch, AbortController, setTimeout, clearTimeout, Uint8Array, atob};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../extension/gemini-worker.mjs'), 'utf8'), context);
-  return {messages, send: msg => context.self.onmessage({data: {id: 1, apiKey: 'test-only', voice: 'gemini:Fola', text: '이진 탐색입니다.', type: 'speak', ...msg}})};
+  return {messages, send: msg => context.self.onmessage({data: {id: 1, apiKey: 'test-only', voice: 'gemini:Kore', text: '이진 탐색입니다.', type: 'speak', ...msg}})};
 }
 const wav = Buffer.alloc(48); wav.write('RIFF'); wav.write('WAVE',8);
 const result = () => ({ok:true,status:200,json:async()=>({steps:[{type:'model_output',content:[{type:'audio',data:wav.toString('base64')}]}]})});
@@ -21,7 +21,7 @@ test('Gemini sends only transcript, uses header credential, decodes WAV and reus
     const body = JSON.parse(init.body);
     assert.equal(body.input[0].content[0].text, '이진 탐색입니다.');
     assert.equal(body.store,false);
-    assert.equal(body.generation_config.speech_config[0].voice,'Fola');
+    assert.equal(body.generation_config.speech_config[0].voice,'Kore');
     return result();
   });
   runner.send({}); await flush();
@@ -43,4 +43,22 @@ test('cancelled response cannot play or fail the next utterance', async () => {
   complete(result()); await flush();
   assert.equal(runner.messages.at(-1).type,'ready');
   assert.ok(!runner.messages.some(m=>m.type==='audio'));
+});
+test('every listed Gemini voice reaches the API unchanged; retired local voices are rejected', async () => {
+  const popup = fs.readFileSync(path.join(__dirname, '../extension/popup.js'), 'utf8');
+  const names = JSON.parse(popup.match(/for \(const name of (\[[^\n]+\])/)[1]);
+  assert.equal(new Set(names).size, 30);
+  const received = [];
+  const runner = setup(async (_, init) => {
+    received.push(JSON.parse(init.body).generation_config.speech_config[0].voice);
+    return result();
+  });
+  for (const name of names) {
+    runner.send({voice: 'gemini:' + name}); await flush();
+    assert.equal(runner.messages.at(-1).type, 'audio', name);
+  }
+  assert.deepEqual(received, names);
+  runner.send({voice: 'local:F1'}); await flush();
+  assert.equal(runner.messages.at(-1).type, 'error');
+  assert.equal(received.length, 30);
 });

@@ -15,7 +15,7 @@ self.onmessage = ({data: msg}) => {
       if (!credential) throw Error('Gemini API 키를 저장해 주세요.');
       if (msg.type === 'init') {self.postMessage({id: msg.id, type: 'ready'}); return;}
       if (blocked) throw Error('Gemini 사용 한도에 도달했습니다. 한도를 확인한 뒤 더빙을 다시 시작하세요.');
-      if (!/^gemini:(Fola|Kore|Puck|Charon|Aoede)$/.test(msg.voice) || typeof msg.text !== 'string' || !msg.text.trim() || msg.text.length > 4000) throw Error('Gemini 음성 또는 문장이 올바르지 않습니다.');
+      if (!/^gemini:(Zephyr|Puck|Charon|Kore|Fenrir|Leda|Orus|Aoede|Callirrhoe|Autonoe|Enceladus|Iapetus|Umbriel|Algieba|Despina|Erinome|Algenib|Rasalgethi|Laomedeia|Achernar|Alnilam|Schedar|Gacrux|Pulcherrima|Achird|Zubenelgenubi|Vindemiatrix|Sadachbia|Sadaltager|Sulafat)$/.test(msg.voice) || typeof msg.text !== 'string' || !msg.text.trim() || msg.text.length > 4000) throw Error('Gemini 음성 또는 문장이 올바르지 않습니다.');
       const key = JSON.stringify([msg.voice, msg.text]);
       let wav = cache.get(key);
       if (!wav) {

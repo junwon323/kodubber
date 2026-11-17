@@ -84,8 +84,8 @@ async function start({file, voice, style, rate}) {
   const cache = new Map();
   let heartbeat = 0;
   let last = -1, pending = false, ready = false, talking = false;
-  let generating = false, prepared = -1;
-  const useLocal = /^(local:[MF][1-5]|gemini:(Fola|Kore|Puck|Charon|Aoede))$/.test(voice || '');
+  let generating = false;
+  const useLocal = /^gemini:(Zephyr|Puck|Charon|Kore|Fenrir|Leda|Orus|Aoede|Callirrhoe|Autonoe|Enceladus|Iapetus|Umbriel|Algieba|Despina|Erinome|Algenib|Rasalgethi|Laomedeia|Achernar|Alnilam|Schedar|Gacrux|Pulcherrima|Achird|Zubenelgenubi|Vindemiatrix|Sadachbia|Sadaltager|Sulafat)$/.test(voice || '');
   let held = false, speechId = 0, speechStarted = 0, speechBoundary = Infinity;
   function hold() {
     if (!video.paused) {
@@ -132,10 +132,6 @@ async function start({file, voice, style, rate}) {
       }
     }
     if (talking) {
-      if (useLocal && !voice.startsWith('gemini:') && !generating && cache.has(last + 1) && prepared !== last + 1) {
-        prepared = last + 1;
-        port.postMessage({type: 'prepare', text: cache.get(prepared), rate: speechRate});
-      }
       if (generating) {
         hold();
         if (Date.now() - speechStarted > 180000) finish('음성 생성 시간이 초과되었습니다. 다시 시작해 주세요.');

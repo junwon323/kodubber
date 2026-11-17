@@ -12,23 +12,20 @@ style.onchange = () => localStorage.setItem('style', style.value);
 voice.onchange = () => localStorage.setItem('voice', voice.value);
 
 async function loadVoices() {
-  const group = document.createElement('optgroup');
-  group.label = 'Supertonic · 이 컴퓨터에서 생성';
-  for (const gender of ['F', 'M']) for (let n = 1; n <= 5; n++) {
-    group.append(new Option((gender === 'F' ? '여성' : '남성') + ' ' + n, 'local:' + gender + n));
-  }
-  voice.prepend(group);
   const cloud = document.createElement('optgroup');
   cloud.label = 'Gemini · 온라인 음성 (API 키 필요)';
-  for (const name of ['Fola', 'Kore', 'Puck', 'Charon', 'Aoede']) cloud.append(new Option(name, 'gemini:' + name));
+  for (const name of ["Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede", "Callirrhoe", "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar", "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat"]) cloud.append(new Option(name, 'gemini:' + name));
   voice.prepend(cloud);
   const voices = await chrome.tts.getVoices();
   for (const v of voices.filter(v => /^ko(?:-|$)/i.test(v.lang || ''))) {
     const key = JSON.stringify([v.extensionId || '', v.voiceName, v.lang]);
     voice.add(new Option(v.voiceName, key));
   }
-  voice.value = localStorage.getItem('voice') || 'local:F1';
-  if (voice.selectedIndex < 0) voice.value = '';
+  voice.value = localStorage.getItem('voice') ?? 'gemini:Kore';
+  if (voice.selectedIndex < 0) {
+    voice.value = 'gemini:Kore';
+    localStorage.setItem('voice', voice.value);
+  }
 }
 let enabled = false;
 let sequence = 0;
@@ -72,7 +69,7 @@ chrome.runtime.onMessage.addListener(msg => {
   if (msg.target === 'preview-status') previewStatus.textContent = msg.text;
 });
 document.querySelector('#preview').onclick = async () => {
-  previewStatus.textContent = voice.value.startsWith('gemini:') ? 'Gemini 음성 생성 중' : '로컬 음성 준비 중';
+  previewStatus.textContent = voice.value.startsWith('gemini:') ? 'Gemini 음성 생성 중' : '음성 준비 중';
   try {
     const result = await chrome.runtime.sendMessage({type: 'preview', voice: voice.value, rate: Number(rate.value)});
     if (result.error) previewStatus.textContent = result.error;
@@ -97,7 +94,7 @@ document.querySelector('#save-key').onclick = async () => {
     await chrome.storage.local.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
     await chrome.storage.local.set({geminiApiKey: key});
     input.value = '';
-    voice.value = 'gemini:Fola';
+    voice.value = 'gemini:Kore';
     localStorage.setItem('voice', voice.value);
     await updateKeyStatus();
   } catch (error) {keyStatus.textContent = error.message;}

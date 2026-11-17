@@ -1,5 +1,4 @@
 let worker;
-let workerEngine;
 let sequence = 0;
 let active = null;
 let audio;
@@ -8,19 +7,13 @@ const jobs = new Map();
 function notify(data) { chrome.runtime.sendMessage({target: 'speech-events', ...data}).catch(() => {}); }
 function stop() {
   active = null;
-  if (workerEngine === 'gemini') worker?.postMessage({type: 'cancel'});
+  worker?.postMessage({type: 'cancel'});
   if (audio) { audio.onended = audio.onerror = null; audio.pause(); audio = null; }
   if (objectURL) { URL.revokeObjectURL(objectURL); objectURL = null; }
 }
-function getWorker(engine) {
-  if (worker && workerEngine === engine) return worker;
-  if (worker) {
-    worker.terminate();
-    for (const job of jobs.values()) job.resolve({error: '음성 엔진이 변경되었습니다.'});
-    jobs.clear();
-  }
-  workerEngine = engine;
-  worker = new Worker(engine === 'gemini' ? 'gemini-worker.mjs' : 'synthesis-worker.mjs', {type: 'module'});
+function getWorker() {
+  if (worker) return worker;
+  worker = new Worker('gemini-worker.mjs', {type: 'module'});
   worker.onmessage = ({data}) => {
     const job = jobs.get(data.id);
     if (!job) return;
@@ -39,7 +32,7 @@ function getWorker(engine) {
     if (job.prepare || active !== job) return;
     objectURL = URL.createObjectURL(new Blob([data.wav], {type: 'audio/wav'}));
     audio = new Audio(objectURL);
-    if (job.engine === 'gemini') {audio.playbackRate = job.rate; audio.preservesPitch = true;}
+    audio.playbackRate = job.rate; audio.preservesPitch = true;
     audio.onended = () => {
       if (active !== job) return;
       stop();
@@ -48,7 +41,7 @@ function getWorker(engine) {
     audio.onerror = () => {
       if (active !== job) return;
       stop();
-      notify({token: job.token, type: 'error', error: '로컬 음성을 재생하지 못했습니다.'});
+      notify({token: job.token, type: 'error', error: '음성을 재생하지 못했습니다.'});
     };
     audio.play().then(() => {
       if (active === job) notify({token: job.token, type: 'start', speechId: job.speechId});
@@ -74,11 +67,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg.type === 'stop') { stop(); reply({ok: true}); return; }
   if (!['init', 'speak', 'prepare'].includes(msg.type)) return;
   if (msg.type !== 'prepare') stop();
-  const engine = msg.voice?.startsWith('gemini:') ? 'gemini' : 'local';
-  const selectedWorker = getWorker(engine);
+  const selectedWorker = getWorker();
   const id = ++sequence;
   const promise = new Promise(resolve => {
-    const job = {engine, rate: [0.75, 0.9, 1, 1.1].includes(msg.rate) ? msg.rate : 0.9, resolve, token: msg.token, speechId: msg.speechId, prepare: msg.type === 'prepare'};
+    const job = {rate: [0.75, 0.9, 1, 1.1].includes(msg.rate) ? msg.rate : 0.9, resolve, token: msg.token, speechId: msg.speechId, prepare: msg.type === 'prepare'};
     jobs.set(id, job);
     if (!job.prepare) active = job;
   });

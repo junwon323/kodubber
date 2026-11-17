@@ -20,7 +20,7 @@ test('stopping synthesis discards late audio and prefetch never interrupts playb
     chrome: {runtime: {id: 'test', onMessage: {addListener: fn => listener = fn},
       sendMessage: async msg => {messages.push(msg);}}}
   });
-  const send = msg => listener({target: 'local-speech', token: 'session', voice: 'F1', ...msg},
+  const send = msg => listener({target: 'local-speech', token: 'session', voice: 'gemini:Kore', ...msg},
     {id: 'test'}, reply => replies.push(reply));
   send({type: 'speak', speechId: 1, text: '첫 문장'});
   const first = worker.sent.at(-1).id;
@@ -41,10 +41,11 @@ test('stopping synthesis discards late audio and prefetch never interrupts playb
   assert.equal(messages.at(-1).speechId, 2);
 });
 
-test('local voice starts without installed Korean system voices and releases the engine on disconnect', async () => {
+test('Gemini voice starts without installed Korean system voices and releases the engine on disconnect', async () => {
   let connect, receive, disconnect, created = false, released = false;
   const sent = [], commands = [];
   const chrome = {
+    storage: {local: {setAccessLevel: async () => {}, get: async () => ({geminiApiKey: "test-only"})}},
     runtime: {
       id: 'test', getURL: p => 'chrome-extension://test/' + p,
       onMessage: {addListener() {}}, onConnect: {addListener: fn => connect = fn},
@@ -58,9 +59,9 @@ test('local voice starts without installed Korean system voices and releases the
   connect({name: 'dub', sender: {frameId: 0, url: 'https://www.youtube.com/watch?v=test'},
     onMessage: {addListener: fn => receive = fn},
     onDisconnect: {addListener: fn => disconnect = fn}, postMessage: msg => sent.push(msg)});
-  await receive({type: 'open', voice: 'local:F1', style: 'lecture'});
+  await receive({type: 'open', voice: 'gemini:Kore', style: 'lecture'});
   assert.ok(created);
-  assert.equal(commands.find(m => m.type === 'init').voice, 'F1');
+  assert.equal(commands.find(m => m.type === 'init').voice, 'gemini:Kore');
   assert.equal(sent.at(-1).type, 'ready');
   await receive({type: 'speak', text: '시험 문장', speechId: 1, rate: 0.9});
   assert.equal(commands.at(-1).type, 'speak');
