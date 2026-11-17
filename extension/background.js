@@ -6,6 +6,7 @@ chrome.runtime.onConnect.addListener(port => {
       !port.sender.url?.startsWith('https://www.youtube.com/')) return;
   let busy = false;
   let voice;
+  let style;
   let closed = false;
   const send = msg => { if (!closed) port.postMessage(msg); };
   function stop() {
@@ -16,7 +17,9 @@ chrome.runtime.onConnect.addListener(port => {
     try {
       if (msg.type === 'open') {
         const voices = await chrome.tts.getVoices();
-        voice = voices.find(v => /^ko(?:-|$)/i.test(v.lang || ''));
+        const korean = voices.filter(v => /^ko(?:-|$)/i.test(v.lang || ''));
+        voice = korean.find(v => JSON.stringify([v.extensionId || '', v.voiceName, v.lang]) === msg.voice) || korean[0];
+        style = msg.style || 'lecture';
         if (!voice) throw Error('Chrome에서 한국어 TTS 음성을 찾지 못했습니다. 한국어 음성 엔진을 설치하세요.');
         if (closed) return;
         if (owner && owner !== port) {
@@ -29,12 +32,12 @@ chrome.runtime.onConnect.addListener(port => {
         if (msg.type === 'translate' && !busy) {
           busy = true;
           try {
-            const result = await chrome.runtime.sendNativeMessage(HOST, {lines: msg.lines});
+            const result = await chrome.runtime.sendNativeMessage(HOST, {lines: msg.lines, ...(style === 'lecture' ? {} : {style})});
             if (result.error) throw Error(result.error);
             send({type: 'result', start: msg.start, lines: result.lines});
           } finally { busy = false; }
         } else if (msg.type === 'speak') {
-          chrome.tts.speak(msg.text, {voiceName: voice.voiceName, lang: voice.lang, rate: msg.rate,
+          chrome.tts.speak(msg.text, {...(voice.extensionId ? {extensionId: voice.extensionId} : {}), voiceName: voice.voiceName, lang: voice.lang, rate: msg.rate,
             onEvent: e => { if (e.type === 'error') send({error: e.errorMessage || '음성 재생 실패'}); }});
         } else if (msg.type === 'quiet') chrome.tts.stop();
       }

@@ -29,9 +29,9 @@ if __name__ == "__main__":
         manifest = json.loads((directory / "com.codex.korean_dubber.json").read_text())
         assert manifest["allowed_origins"] == ["chrome-extension://dnmkapgfepfbfeeecepaebdgkpolcmik/"]
         host = manifest["path"]
-        for invalid in [b"[]", b"{}", b'{"lines":[""]}', b"x" * 65537]:
+        for invalid in [b"[]", b"{}", b'{"lines":[""]}', b'{"lines":["Hi"],"style":"unknown"}', b"x" * 65537]:
             assert "error" in send(invalid, host, env)
-        result = send(b'{"lines":["Binary search halves the search interval each time."]}', host, env)
+        result = send(b'{"style":"friendly","lines":["Binary search halves the search interval each time."]}', host, env)
         assert len(result.get("lines", [])) == 1, result
         assert any("가" <= c <= "힣" for c in result["lines"][0]), result
         print(result["lines"][0])

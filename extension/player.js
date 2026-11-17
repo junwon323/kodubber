@@ -43,7 +43,7 @@ function finish(message) {
   status = message;
 }
 
-async function start(file) {
+async function start({file, voice, style}) {
   finish('자막 확인 중');
   enabled = true;
   const version = revision;
@@ -123,13 +123,13 @@ async function start(file) {
   }
   s.timer = setInterval(tick, 180);
   status = '한국어 음성 확인 중';
-  port.postMessage({type: 'open'});
+  port.postMessage({type: 'open', voice, style});
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg.type === 'start' && !enabled) {
     const expected = revision + 1;
-    start(msg.file).catch(e => { if (revision === expected) finish(e.message); });
+    start(msg).catch(e => { if (revision === expected) finish(e.message); });
   }
   if (msg.type === 'stop') finish('더빙 종료');
   reply({status, enabled});
