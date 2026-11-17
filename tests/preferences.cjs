@@ -22,3 +22,27 @@ test('worker selects the requested Korean voice and passes the translation style
   assert.equal(speech.extensionId, 'second');
   assert.equal(speech.lang, 'ko-KR');
 });
+
+test('Chrome preview works without an API key and ignores playback after cancellation', async () => {
+  let listener, finishLookup, spoken = 0;
+  const removed = [], replies = [];
+  const chrome = {
+    storage: {local: {remove: async key => removed.push(key)}},
+    runtime: {id: 'test', getURL: p => 'chrome-extension://test/' + p,
+      onMessage: {addListener: fn => listener = fn}, onConnect: {addListener() {}}, sendMessage: async () => ({})},
+    tts: {stop() {}, getVoices: () => new Promise(resolve => {finishLookup = resolve;}), speak: () => {spoken++;}}
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../extension/background.js'), 'utf8'), {chrome});
+  const send = msg => listener(msg, {id: 'test', url: chrome.runtime.getURL('popup.html')}, reply => replies.push(reply));
+  send({type: 'preview', voice: ''});
+  send({type: 'preview-stop'});
+  finishLookup([{voiceName: '한국어', lang: 'ko-KR'}]);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(spoken, 0);
+  send({type: 'preview', voice: ''});
+  finishLookup([{voiceName: '한국어', lang: 'ko-KR'}]);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(spoken, 1);
+  assert.deepEqual(removed, ['geminiApiKey']);
+  assert.equal(replies.at(-1).ok, true);
+});

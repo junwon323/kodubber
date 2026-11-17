@@ -84,8 +84,6 @@ async function start({file, voice, style, rate}) {
   const cache = new Map();
   let heartbeat = 0;
   let last = -1, pending = false, ready = false, talking = false;
-  let generating = false;
-  const useLocal = /^gemini:(Zephyr|Puck|Charon|Kore|Fenrir|Leda|Orus|Aoede|Callirrhoe|Autonoe|Enceladus|Iapetus|Umbriel|Algieba|Despina|Erinome|Algenib|Rasalgethi|Laomedeia|Achernar|Alnilam|Schedar|Gacrux|Pulcherrima|Achird|Zubenelgenubi|Vindemiatrix|Sadachbia|Sadaltager|Sulafat)$/.test(voice || '');
   let held = false, speechId = 0, speechStarted = 0, speechBoundary = Infinity;
   function hold() {
     if (!video.paused) {
@@ -104,7 +102,6 @@ async function start({file, voice, style, rate}) {
   function quiet() {
     if (talking) port.postMessage({type: 'quiet'});
     talking = false;
-    generating = false;
     speechId++;
     last = -1;
     if (s.mutedByUs) { video.muted = s.wasMuted; s.mutedByUs = false; }
@@ -132,11 +129,6 @@ async function start({file, voice, style, rate}) {
       }
     }
     if (talking) {
-      if (generating) {
-        hold();
-        if (Date.now() - speechStarted > 180000) finish('음성 생성 시간이 초과되었습니다. 다시 시작해 주세요.');
-        return;
-      }
       if (Date.now() - speechStarted > 60000) return finish('음성 완료 신호를 받지 못했습니다. 다른 목소리를 선택해 주세요.');
       if (t >= speechBoundary) {
         hold();
@@ -162,20 +154,17 @@ async function start({file, voice, style, rate}) {
     video.muted = true;
     s.mutedByUs = true;
     talking = true;
-    generating = useLocal;
-    if (generating) hold();
     speechStarted = Date.now();
     speechBoundary = rows[i + 1]?.start ?? rows[i].end;
     port.postMessage({type: 'speak', text, rate: speechRate, speechId: ++speechId});
-    if (!generating) resume();
-    status = generating ? '한국어 음성 생성 중 · 영상 잠시 멈춤' : '한국어 더빙 중';
+    resume();
+    status = '한국어 더빙 중';
   }
   port.onMessage.addListener(msg => {
     if (session !== s) return;
     if (msg.error) return finish(msg.error);
     if (msg.type === 'progress') { status = msg.text; return; }
     if (msg.type === 'speech-start' && msg.speechId === speechId) {
-      generating = false;
       speechStarted = Date.now();
       resume();
       status = '한국어 더빙 중';
@@ -183,7 +172,6 @@ async function start({file, voice, style, rate}) {
     if (msg.type === 'ready') ready = true;
     if (msg.type === 'speech-end' && msg.speechId === speechId) {
       talking = false;
-      generating = false;
       resume();
     }
     if (msg.type === 'result') {
@@ -201,7 +189,6 @@ async function start({file, voice, style, rate}) {
   video.addEventListener('ended', () => { held = false; quiet(); }, {signal: s.events.signal});
   s.timer = setInterval(tick, 180);
   status = '한국어 음성 확인 중';
-  if (useLocal) hold();
   port.postMessage({type: 'open', voice, style});
 }
 

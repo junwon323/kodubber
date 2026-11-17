@@ -9,17 +9,10 @@ button{font:inherit;padding:7px 14px;border:1px solid #aab5bf;border-radius:6px;
 <h1>강의 한국어 더빙</h1>
 <p>유튜브에서 원본 언어 자막(CC)을 켜세요.</p>
 <label>더빙 목소리<select id="voice"><option value="">한국어 음성 자동 선택</option></select></label>
-<details><summary>Gemini API 설정</summary>
-<p>결제가 연결되지 않은 무료 등급 프로젝트의 키를 사용하세요. 유료 프로젝트 키는 과금될 수 있습니다. 번역된 문장을 Google로 전송합니다.</p>
-<p><a href="https://aistudio.google.com/api-keys" target="_blank" rel="noreferrer">API 키 만들기</a> · <a href="https://aistudio.google.com/rate-limit" target="_blank" rel="noreferrer">무료 사용 한도 확인</a></p>
-<label>API 키<input id="gemini-key" type="password" autocomplete="off" placeholder="새 키 입력 (저장 후 비워집니다)"></label>
-<button id="save-key">키 저장</button> <button id="delete-key">키 삭제</button>
-<output id="key-status" aria-live="polite"></output>
-<p>키는 이 Chrome 프로필에만 저장됩니다. 동기화하지 않습니다.</p>
-</details>
+
 <button id="preview">목소리 미리듣기</button>
 <button id="preview-stop">미리듣기 중지</button>
-<output id="preview-status" aria-live="polite">Gemini 목소리 30개를 선택할 수 있습니다. 미리듣기도 API 사용량에 포함됩니다.</output>
+<output id="preview-status" aria-live="polite">Chrome에서 제공하는 한국어 음성을 사용합니다. API 키가 필요하지 않습니다.</output>
 <label>말하기 속도<select id="rate">
 <option value="0.75">천천히 · 0.75배</option>
 <option value="0.9" selected>조금 천천히 · 0.9배</option>
