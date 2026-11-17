@@ -93,7 +93,7 @@ self.onmessage = ({data}) => {
       }
       progress('한국어 음성 생성 중');
       const rate = [0.75, 0.9, 1, 1.1].includes(data.rate) ? data.rate : 0.9;
-      const result = await tts.call(data.text, 'ko', style, 2, rate);
+      const result = await tts.call(data.text, 'ko', style, 5, rate);
       const samples = result.wav.slice(0, Math.floor(result.duration[0] * tts.sampleRate));
       const wav = writeWavFile(samples, tts.sampleRate);
       audioCache.set(key, wav.slice(0));

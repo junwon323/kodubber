@@ -553,11 +553,18 @@ export function writeWavFile(audioData, sampleRate) {
     writeString(36, 'data');
     view.setUint32(40, dataSize, true);
     
-    // Write audio data
+    // Attenuate peaks before PCM conversion instead of hard-clipping the waveform.
+    let peak = 0;
+    for (const sample of audioData) {
+        if (!Number.isFinite(sample)) throw new Error('Invalid audio sample');
+        peak = Math.max(peak, Math.abs(sample));
+    }
+    const gain = peak > 0.89 ? 0.89 / peak : 1;
+    const fadeSamples = Math.min(Math.floor(sampleRate * 0.005), Math.floor(audioData.length / 2));
     const int16Data = new Int16Array(audioData.length);
     for (let i = 0; i < audioData.length; i++) {
-        const clamped = Math.max(-1.0, Math.min(1.0, audioData[i]));
-        int16Data[i] = Math.floor(clamped * 32767);
+        const fade = fadeSamples ? Math.min(1, i / fadeSamples, (audioData.length - 1 - i) / fadeSamples) : 1;
+        int16Data[i] = Math.round(audioData[i] * gain * fade * 32767);
     }
     
     const dataView = new Uint8Array(buffer, 44);
