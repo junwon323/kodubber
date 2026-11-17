@@ -85,7 +85,7 @@ async function start({file, voice, style, rate}) {
   let heartbeat = 0;
   let last = -1, pending = false, ready = false, talking = false;
   let generating = false, prepared = -1;
-  const useLocal = /^local:[MF][1-5]$/.test(voice || '');
+  const useLocal = /^(local:[MF][1-5]|gemini:(Fola|Kore|Puck|Charon|Aoede))$/.test(voice || '');
   let held = false, speechId = 0, speechStarted = 0, speechBoundary = Infinity;
   function hold() {
     if (!video.paused) {
@@ -132,7 +132,7 @@ async function start({file, voice, style, rate}) {
       }
     }
     if (talking) {
-      if (useLocal && !generating && cache.has(last + 1) && prepared !== last + 1) {
+      if (useLocal && !voice.startsWith('gemini:') && !generating && cache.has(last + 1) && prepared !== last + 1) {
         prepared = last + 1;
         port.postMessage({type: 'prepare', text: cache.get(prepared), rate: speechRate});
       }

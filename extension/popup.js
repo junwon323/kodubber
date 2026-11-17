@@ -18,6 +18,10 @@ async function loadVoices() {
     group.append(new Option((gender === 'F' ? '여성' : '남성') + ' ' + n, 'local:' + gender + n));
   }
   voice.prepend(group);
+  const cloud = document.createElement('optgroup');
+  cloud.label = 'Gemini · 온라인 음성 (API 키 필요)';
+  for (const name of ['Fola', 'Kore', 'Puck', 'Charon', 'Aoede']) cloud.append(new Option(name, 'gemini:' + name));
+  voice.prepend(cloud);
   const voices = await chrome.tts.getVoices();
   for (const v of voices.filter(v => /^ko(?:-|$)/i.test(v.lang || ''))) {
     const key = JSON.stringify([v.extensionId || '', v.voiceName, v.lang]);
@@ -68,7 +72,7 @@ chrome.runtime.onMessage.addListener(msg => {
   if (msg.target === 'preview-status') previewStatus.textContent = msg.text;
 });
 document.querySelector('#preview').onclick = async () => {
-  previewStatus.textContent = '로컬 음성 준비 중';
+  previewStatus.textContent = voice.value.startsWith('gemini:') ? 'Gemini 음성 생성 중' : '로컬 음성 준비 중';
   try {
     const result = await chrome.runtime.sendMessage({type: 'preview', voice: voice.value, rate: Number(rate.value)});
     if (result.error) previewStatus.textContent = result.error;
@@ -78,3 +82,29 @@ document.querySelector('#preview-stop').onclick = async () => {
   await chrome.runtime.sendMessage({type: 'preview-stop'});
   previewStatus.textContent = '미리듣기 중지';
 };
+
+const keyStatus = document.querySelector('#key-status');
+async function updateKeyStatus() {
+  await chrome.storage.local.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
+  const settings = await chrome.storage.local.get('geminiApiKey');
+  keyStatus.textContent = settings.geminiApiKey ? 'API 키가 저장되어 있습니다.' : '저장된 API 키가 없습니다.';
+}
+document.querySelector('#save-key').onclick = async () => {
+  try {
+    const input = document.querySelector('#gemini-key');
+    const key = input.value.trim();
+    if (!key || /\s/.test(key)) throw Error('올바른 API 키를 입력해 주세요.');
+    await chrome.storage.local.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
+    await chrome.storage.local.set({geminiApiKey: key});
+    input.value = '';
+    voice.value = 'gemini:Fola';
+    localStorage.setItem('voice', voice.value);
+    await updateKeyStatus();
+  } catch (error) {keyStatus.textContent = error.message;}
+};
+document.querySelector('#delete-key').onclick = async () => {
+  await chrome.storage.local.remove('geminiApiKey');
+  document.querySelector('#gemini-key').value = '';
+  await updateKeyStatus();
+};
+updateKeyStatus().catch(error => {keyStatus.textContent = error.message;});

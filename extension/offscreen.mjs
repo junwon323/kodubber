@@ -1,4 +1,5 @@
 let worker;
+let workerEngine;
 let sequence = 0;
 let active = null;
 let audio;
@@ -7,12 +8,19 @@ const jobs = new Map();
 function notify(data) { chrome.runtime.sendMessage({target: 'speech-events', ...data}).catch(() => {}); }
 function stop() {
   active = null;
+  if (workerEngine === 'gemini') worker?.postMessage({type: 'cancel'});
   if (audio) { audio.onended = audio.onerror = null; audio.pause(); audio = null; }
   if (objectURL) { URL.revokeObjectURL(objectURL); objectURL = null; }
 }
-function getWorker() {
-  if (worker) return worker;
-  worker = new Worker('synthesis-worker.mjs', {type: 'module'});
+function getWorker(engine) {
+  if (worker && workerEngine === engine) return worker;
+  if (worker) {
+    worker.terminate();
+    for (const job of jobs.values()) job.resolve({error: '음성 엔진이 변경되었습니다.'});
+    jobs.clear();
+  }
+  workerEngine = engine;
+  worker = new Worker(engine === 'gemini' ? 'gemini-worker.mjs' : 'synthesis-worker.mjs', {type: 'module'});
   worker.onmessage = ({data}) => {
     const job = jobs.get(data.id);
     if (!job) return;
@@ -31,6 +39,7 @@ function getWorker() {
     if (job.prepare || active !== job) return;
     objectURL = URL.createObjectURL(new Blob([data.wav], {type: 'audio/wav'}));
     audio = new Audio(objectURL);
+    if (job.engine === 'gemini') {audio.playbackRate = job.rate; audio.preservesPitch = true;}
     audio.onended = () => {
       if (active !== job) return;
       stop();
@@ -61,17 +70,19 @@ function getWorker() {
   return worker;
 }
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  if (msg.target !== 'local-speech' || sender.id !== chrome.runtime.id) return;
+  if (msg.target !== 'local-speech' || sender.id !== chrome.runtime.id || sender.tab) return;
   if (msg.type === 'stop') { stop(); reply({ok: true}); return; }
   if (!['init', 'speak', 'prepare'].includes(msg.type)) return;
   if (msg.type !== 'prepare') stop();
+  const engine = msg.voice?.startsWith('gemini:') ? 'gemini' : 'local';
+  const selectedWorker = getWorker(engine);
   const id = ++sequence;
   const promise = new Promise(resolve => {
-    const job = {resolve, token: msg.token, speechId: msg.speechId, prepare: msg.type === 'prepare'};
+    const job = {engine, rate: [0.75, 0.9, 1, 1.1].includes(msg.rate) ? msg.rate : 0.9, resolve, token: msg.token, speechId: msg.speechId, prepare: msg.type === 'prepare'};
     jobs.set(id, job);
     if (!job.prepare) active = job;
   });
-  getWorker().postMessage({...msg, id});
+  selectedWorker.postMessage({...msg, id});
   promise.then(reply);
   return true;
 });

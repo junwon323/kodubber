@@ -4,7 +4,9 @@ let previewToken = null;
 let nextToken = 0;
 let localRevision = 0;
 let lifecycle = Promise.resolve();
-const local = voice => /^local:[MF][1-5]$/.test(voice || '');
+const gemini = voice => /^gemini:(Fola|Kore|Puck|Charon|Aoede)$/.test(voice || '');
+const local = voice => /^local:[MF][1-5]$/.test(voice || '') || gemini(voice);
+const storageReady = chrome.storage?.local.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
 
 function ensureLocal() {
   lifecycle = lifecycle.catch(() => {}).then(async () => {
@@ -27,6 +29,12 @@ async function localCommand(msg) {
   const revision = msg.type === 'prepare' ? localRevision : ++localRevision;
   await ensureLocal();
   if (revision !== localRevision || (owner?.token !== msg.token && previewToken !== msg.token)) return;
+  if (gemini(msg.voice)) {
+    await storageReady;
+    const settings = await chrome.storage.local.get('geminiApiKey');
+    if (!settings.geminiApiKey) throw Error('확장 설정에서 Gemini API 키를 저장해 주세요.');
+    msg = {...msg, apiKey: settings.geminiApiKey};
+  }
   const result = await chrome.runtime.sendMessage({target: 'local-speech', ...msg});
   if (result?.error) throw Error(result.error);
   return result;
@@ -47,7 +55,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     }
     if (previewToken === msg.token) {
       chrome.runtime.sendMessage({target: 'preview-status', text: msg.error || msg.text ||
-        (msg.type === 'end' ? '미리듣기 완료' : '로컬 음성 재생 중')}).catch(() => {});
+        (msg.type === 'end' ? '미리듣기 완료' : '음성 재생 중')}).catch(() => {});
       if (['end', 'error'].includes(msg.type)) { previewToken = null; releaseLocal(); }
     }
   }
@@ -55,7 +63,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     if (owner) { reply({error: '더빙을 끈 뒤 미리듣기를 눌러 주세요.'}); return; }
     if (!local(msg.voice)) { reply({error: '로컬 목소리를 선택해 주세요.'}); return; }
     const token = previewToken = 'preview-' + ++nextToken;
-    localCommand({type: 'speak', token, voice: msg.voice.slice(6), rate: msg.rate,
+    localCommand({type: 'speak', token, voice: gemini(msg.voice) ? msg.voice : msg.voice.slice(6), rate: msg.rate,
       text: '안녕하세요. 이진 탐색은 정렬된 배열에서 탐색 범위를 절반으로 줄이는 방법입니다.'})
       .then(() => reply({ok: true})).catch(error => {
         if (previewToken === token) { previewToken = null; releaseLocal(); }
@@ -94,8 +102,8 @@ chrome.runtime.onConnect.addListener(port => {
         style = msg.style || 'lecture';
         useLocal = local(msg.voice);
         if (useLocal) {
-          voice = msg.voice.slice(6);
-          send({type: 'progress', text: '로컬 음성 모델 준비 중 · 처음에는 약 400MB 다운로드'});
+          voice = gemini(msg.voice) ? msg.voice : msg.voice.slice(6);
+          send({type: 'progress', text: gemini(voice) ? 'Gemini 음성 연결 준비 중' : '로컬 음성 모델 준비 중 · 처음에는 약 400MB 다운로드'});
           await localCommand({type: 'init', token: current.token, voice});
         } else {
           const voices = await chrome.tts.getVoices();
