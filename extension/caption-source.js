@@ -50,7 +50,7 @@
       const response = player?.getPlayerResponse?.() || window.ytInitialPlayerResponse;
       if (response?.videoDetails?.videoId !== msg.video) return reply({error: '플레이어 정보를 읽지 못했습니다. 영상 페이지를 새로고침해 주세요.'});
       const tracks = response.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-      if (!tracks.length) return reply({error: '이 영상에서 사용할 수 있는 자막 트랙을 찾지 못했습니다.'});
+      if (!tracks.length) return reply({error: '이 영상에는 일반 자막과 자동 생성 자막이 없습니다. 시청자나 확장에서 자동 생성을 요청할 수 없습니다. 자막 파일이 있으면 선택해 주세요.'});
       const selected = player?.getOption?.('captions', 'track');
       const track = tracks.find(t => t.vssId === selected?.vssId) ||
         tracks.find(t => t.kind !== 'asr') || tracks[0];

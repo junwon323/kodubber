@@ -1,7 +1,12 @@
 /* Shared by the content script and the browser fixture. */
 const Captions = (() => {
+  function stripMarkup(text) {
+    return text.replace(/(^|[^\w])\*\*\s*([^*]+?)\s*\*\*(?=$|[^\w])/g, (_, before, inner) => before + inner.trim())
+      .replace(/(^|[^\w])__\s*([^_]+?)\s*__(?=$|[^\w])/g, (_, before, inner) => before + inner.trim())
+      .replace(/`([^`]+)`/g, '$1').replace(/^\s*[*_`]{2,}\s*$/, '');
+  }
   function clean(text) {
-    return text.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    return stripMarkup(text).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
       .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
   }
   function seconds(stamp) {
@@ -28,8 +33,16 @@ const Captions = (() => {
     const grouped = [];
     for (const row of rows) {
       const previous = grouped.at(-1);
-      if (previous && row.start - previous.end <= 0.5 && row.end - previous.start <= 8 &&
-          previous.text.length + row.text.length < 900 && !/[.!?。？！]$/.test(previous.text)) {
+      // Short subtitle gaps are not necessarily sentence boundaries. Give an
+      // unfinished sentence room to finish, without spanning long real pauses.
+      const finished = previous && /[.!?。？！]["”’)]?$/.test(previous.text);
+      const gap = previous ? row.start - previous.end : Infinity;
+      const span = previous ? row.end - previous.start : Infinity;
+      const continuation = !finished && gap <= 1.5 && span <= 40;
+      const shortSentence = finished && gap <= 0.5 &&
+        previous.end - previous.start < 6 && span <= 12;
+      if (previous && (continuation || shortSentence) &&
+          previous.text.length + row.text.length < 1100) {
         if (previous.text !== row.text) previous.text += ' ' + row.text;
         previous.end = Math.max(previous.end, row.end);
       } else grouped.push({...row});

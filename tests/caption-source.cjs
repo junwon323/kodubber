@@ -56,3 +56,11 @@ test('does not return subtitles for a different video', async () => {
   assert.ok(f.replies[0].error);
   assert.equal(f.fetched.length, 0);
 });
+test('uses automatic captions when they are the only available track', async () => {
+  const f=fixture();
+  f.player.getPlayerResponse=()=>({videoDetails:{videoId:'video1'},captions:{playerCaptionsTracklistRenderer:{captionTracks:[{kind:'asr',vssId:'a.en',baseUrl:'https://www.youtube.com/api/timedtext?v=video1&lang=en&kind=asr'}]}}});
+  f.player.getOption=()=>({});await f.request('video1');assert.match(f.fetched[0],/kind=asr/);assert.equal(f.replies[0].raw,f.payload);
+});
+test('explains when neither normal nor automatic captions are provided', async () => {
+  const f=fixture();f.player.getPlayerResponse=()=>({videoDetails:{videoId:'video1'}});await f.request('video1');assert.match(f.replies[0].error,/자동 생성 자막이 없습니다/);assert.equal(f.fetched.length,0);
+});

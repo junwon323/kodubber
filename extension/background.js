@@ -1,3 +1,4 @@
+importScripts('speech-text.js');
 const HOST = 'com.codex.korean_dubber';
 let owner = null;
 let previewToken = 0;
@@ -16,7 +17,7 @@ function speak(text, voice, rate, onEvent) {
   chrome.tts.speak(text, {
     ...(voice.extensionId ? {extensionId: voice.extensionId} : {}),
     voiceName: voice.voiceName, lang: voice.lang,
-    rate: [0.75, 0.9, 1, 1.1].includes(rate) ? rate : 0.9,
+    rate: 1.05,
     onEvent
   });
 }
@@ -48,10 +49,12 @@ chrome.runtime.onConnect.addListener(port => {
   if (port.name !== 'dub' || port.sender?.frameId !== 0 ||
       !port.sender.url?.startsWith('https://www.youtube.com/')) return;
   let busy = false, closed = false, voice, style;
+  let formulaSeen = new Set(), speechGeneration = 0;
   const send = msg => {if (!closed) port.postMessage(msg);};
   const current = {send};
   port.onDisconnect.addListener(() => {
     closed = true;
+    speechGeneration++;
     if (owner === current) {owner = null; chrome.tts.stop();}
   });
   port.onMessage.addListener(async msg => {
@@ -61,7 +64,9 @@ chrome.runtime.onConnect.addListener(port => {
         owner = current;
         previewToken++;
         chrome.tts.stop();
-        style = msg.style || 'lecture';
+        style = 'lecture';
+        formulaSeen.clear();
+        speechGeneration++;
         voice = await selectVoice(msg.voice);
         if (closed || owner !== current) return;
         send({type: 'ready'});
@@ -74,13 +79,23 @@ chrome.runtime.onConnect.addListener(port => {
             send({type: 'result', start: msg.start, lines: result.lines});
           } finally {busy = false;}
         } else if (msg.type === 'speak') {
-          speak(msg.text, voice, msg.rate, event => {
-            if (owner !== current) return;
+          const generation = ++speechGeneration;
+          const pendingSeen = new Set(formulaSeen);
+          const spokenText = speechText(msg.text, pendingSeen);
+          speak(spokenText, voice, msg.rate, event => {
+            if (closed || owner !== current || generation !== speechGeneration) return;
             if (event.type === 'error') send({error: event.errorMessage || '음성 재생 실패'});
             if (event.type === 'start') send({type: 'speech-start', speechId: msg.speechId});
-            if (event.type === 'end') send({type: 'speech-end', speechId: msg.speechId});
+            if (event.type === 'end') {
+              formulaSeen = pendingSeen;
+              send({type: 'speech-end', speechId: msg.speechId});
+            }
           });
-        } else if (msg.type === 'quiet') chrome.tts.stop();
+        } else if (msg.type === 'quiet') {
+          speechGeneration++;
+          chrome.tts.stop();
+          if (msg.resetFormulas) formulaSeen.clear();
+        }
       }
     } catch (error) {if (owner === current) send({error: error.message});}
   });

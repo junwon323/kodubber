@@ -2,6 +2,33 @@ let session = null;
 let revision = 0;
 let enabled = false;
 let status = '대기 중';
+let ccLease = null;
+function enableCC(id) {
+  const button = document.querySelector('.ytp-subtitles-button');
+  if (!button || button.disabled || button.getAttribute('aria-disabled') === 'true') return;
+  const pressed = button.getAttribute('aria-pressed');
+  if (!['true', 'false'].includes(pressed)) return;
+  ccLease = {id, button, original: pressed, expected: pressed};
+  if (pressed === 'false') {
+    button.click();
+    ccLease.expected = 'true';
+  }
+}
+function hideCC() {
+  const lease = ccLease;
+  if (!lease || videoId() !== lease.id || !lease.button.isConnected) return;
+  if (lease.button.getAttribute('aria-pressed') === 'true') {
+    lease.button.click();
+    lease.expected = 'false';
+  }
+}
+function restoreCC() {
+  const lease = ccLease;
+  ccLease = null;
+  if (lease && videoId() === lease.id && lease.button.isConnected &&
+      lease.button.getAttribute('aria-pressed') === lease.expected &&
+      lease.expected !== lease.original) lease.button.click();
+}
 const videoId = () => new URL(location.href).searchParams.get('v');
 
 async function captions(v, id) {
@@ -54,6 +81,7 @@ async function captions(v, id) {
 
 function finish(message) {
   revision++;
+  restoreCC();
   enabled = false;
   const s = session;
   session = null;
@@ -67,20 +95,22 @@ function finish(message) {
   status = message;
 }
 
-async function start({file, voice, style, rate}) {
+async function start({file, voice}) {
   finish('자막 확인 중');
   enabled = true;
   const version = revision;
   const video = document.querySelector('video.html5-main-video') || document.querySelector('video');
   const id = videoId();
   if (!video || !id) throw Error('유튜브 강의 영상 페이지를 열어 주세요.');
+  enableCC(id);
   const rows = Captions.group(file ? Captions.vtt(file) : await captions(video, id));
   if (version !== revision) return;
   if (videoId() !== id) return finish('영상이 변경되어 종료했습니다.');
   if (!rows.length) throw Error('시간 정보가 있는 자막을 찾지 못했습니다.');
+  hideCC();
   const port = chrome.runtime.connect({name: 'dub'});
   const s = session = {video, port, events: new AbortController(), wasMuted: video.muted, mutedByUs: false};
-  const speechRate = [0.75, 0.9, 1, 1.1].includes(Number(rate)) ? Number(rate) : 0.9;
+  const speechRate = 1.05;
   const cache = new Map();
   let heartbeat = 0;
   let last = -1, pending = false, ready = false, talking = false;
@@ -99,8 +129,8 @@ async function start({file, voice, style, rate}) {
     }
   }
   s.resume = resume;
-  function quiet() {
-    if (talking) port.postMessage({type: 'quiet'});
+  function quiet(resetFormulas = false) {
+    if (talking || resetFormulas) port.postMessage({type: 'quiet', resetFormulas});
     talking = false;
     speechId++;
     last = -1;
@@ -129,7 +159,7 @@ async function start({file, voice, style, rate}) {
       }
     }
     if (talking) {
-      if (Date.now() - speechStarted > 60000) return finish('음성 완료 신호를 받지 못했습니다. 다른 목소리를 선택해 주세요.');
+      if (Date.now() - speechStarted > 120000) return finish('음성 완료 신호를 받지 못했습니다. 다른 목소리를 선택해 주세요.');
       if (t >= speechBoundary) {
         hold();
         status = '한국어 설명이 끝나면 영상이 이어집니다';
@@ -185,11 +215,11 @@ async function start({file, voice, style, rate}) {
     if (session === s) finish(reason || '연결 종료. 다시 시작해 주세요.');
   });
   video.addEventListener('pause', () => { if (!held) quiet(); }, {signal: s.events.signal});
-  video.addEventListener('seeking', () => { held = false; quiet(); }, {signal: s.events.signal});
+  video.addEventListener('seeking', () => { held = false; quiet(true); }, {signal: s.events.signal});
   video.addEventListener('ended', () => { held = false; quiet(); }, {signal: s.events.signal});
   s.timer = setInterval(tick, 180);
   status = '한국어 음성 확인 중';
-  port.postMessage({type: 'open', voice, style});
+  port.postMessage({type: 'open', voice});
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
