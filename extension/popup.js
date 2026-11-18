@@ -37,7 +37,7 @@ async function command(type) {
     document.querySelector('#translation-mode').disabled = enabled;
     document.querySelector('#voice').disabled = enabled;
     output.textContent = reply.status;
-    if (reply.status?.startsWith('로컬 codex 연결 실패')) document.querySelector('#local-help').open = true;
+    if (reply.status?.startsWith('로컬 연결 실패')) document.querySelector('#local-help').open = true;
   } catch (e) {
     if (request !== sequence) return;
     toggle.disabled = type === 'status';
@@ -71,7 +71,7 @@ async function refreshAccount(){
  modeSelect.value=state.mode||'local';document.querySelector('#local-panel').hidden=modeSelect.value!=='local';document.querySelector('#office-panel').hidden=modeSelect.value!=='office';
  document.querySelector('#office-permission').hidden=granted;
  document.querySelector('#office-address').disabled=enabled;
- document.querySelector('#account-status').textContent=!granted?'먼저 사무실 연결을 허용해 주세요.':state.email?state.email+' · 로그인됨':'허용된 계정으로 로그인해 주세요.';
+ document.querySelector('#account-status').textContent=!granted?'먼저 클라우드 연결을 허용해 주세요.':state.email?state.email+' · 로그인됨':'허용된 계정으로 로그인해 주세요.';
  document.querySelector('#login-form').hidden=!granted||!!state.email;document.querySelector('#logout').hidden=!state.email;
 }
 document.querySelector('#office-permission').onclick=async()=>{
@@ -83,7 +83,7 @@ document.querySelector('#office-permission').onclick=async()=>{
   const save=chrome.storage.local.set({officeOrigin:origin,...(origin!==savedOfficeOrigin?{officeSession:null}:{})});
   const permission=chrome.permissions.request({origins:[origin+'/*']});
   await save;const granted=await permission;savingOfficeOrigin=false;
-  status.textContent=granted?'':'연결을 허용해야 사무실 번역을 사용할 수 있습니다.';
+  status.textContent=granted?'':'연결을 허용해야 클라우드 번역을 사용할 수 있습니다.';
   await refreshAccount();
  } catch(error){status.textContent=error.message;}finally{savingOfficeOrigin=false;button.disabled=false;}
 };
@@ -94,7 +94,7 @@ modeSelect.onchange=async()=>{await chrome.storage.local.set({translationMode:mo
 document.querySelector('#login-form').onsubmit=async event=>{
  event.preventDefault();const button=document.querySelector('#login'),status=document.querySelector('#login-status');button.disabled=true;
  try{
-  if(normalizeOfficeOrigin(document.querySelector('#office-address').value)!==savedOfficeOrigin||!await chrome.permissions.contains(officePermission())){await refreshAccount();throw Error('먼저 사무실 연결 허용 버튼을 눌러 주세요.');}
+  if(normalizeOfficeOrigin(document.querySelector('#office-address').value)!==savedOfficeOrigin||!await chrome.permissions.contains(officePermission())){await refreshAccount();throw Error('먼저 주소 저장 및 연결 허용 버튼을 눌러 주세요.');}
   const result=await chrome.runtime.sendMessage({type:'office-login',email:document.querySelector('#email').value,password:document.querySelector('#password').value});
   if(result.error)throw Error(result.error);status.textContent='로그인되었습니다.';await refreshAccount();
  }catch(error){status.textContent=error.message;}finally{document.querySelector('#password').value='';button.disabled=false;}

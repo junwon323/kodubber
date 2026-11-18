@@ -7,13 +7,13 @@ async function officeRequest(path, {body,token,signal,origin}={}) {
   const response=await fetch(origin+path,{method:body===undefined?'GET':'POST',credentials:'omit',redirect:'error',cache:'no-store',
     headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},
     ...(body===undefined?{}:{body:JSON.stringify(body)}),signal:signal||AbortSignal.timeout(130000)});
-  let result;try{result=await response.json();}catch{throw Error('사무실 서버 응답을 읽지 못했습니다.');}
-  if(!response.ok){if(response.status===401&&token){const s=(await chrome.storage.local.get('officeSession')).officeSession;if(s?.token===token)await chrome.storage.local.remove('officeSession');}throw Error(result.error||'사무실 서버 요청 실패');}
+  let result;try{result=await response.json();}catch{throw Error('클라우드 서버 응답을 읽지 못했습니다.');}
+  if(!response.ok){if(response.status===401&&token){const s=(await chrome.storage.local.get('officeSession')).officeSession;if(s?.token===token)await chrome.storage.local.remove('officeSession');}throw Error(result.error||'클라우드 서버 요청 실패');}
   return result;
 }
 async function officeSession() {
  const {officeSession:s}=await chrome.storage.local.get('officeSession');
- if(!s || s.expiresAt<=Date.now() || s.origin!==await configuredOfficeOrigin()){await chrome.storage.local.remove('officeSession');throw Error('사무실 모드를 사용하려면 로그인해 주세요.');}return s;
+ if(!s || s.expiresAt<=Date.now() || s.origin!==await configuredOfficeOrigin()){await chrome.storage.local.remove('officeSession');throw Error('클라우드 모드를 사용하려면 로그인해 주세요.');}return s;
 }
 async function officeTranslate(lines,signal){
  const session=await officeSession();const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),135000);
@@ -41,7 +41,7 @@ async function officeTranslate(lines,signal){
 async function translationMode(){return (await chrome.storage.local.get('translationMode')).translationMode==='office'?'office':'local';}
 async function localTranslate(lines){
  try{const result=await chrome.runtime.sendNativeMessage(HOST,{lines});if(result.error)throw Error(result.error);return result;}
- catch (error) {throw Error('로컬 codex 연결 실패: 다운로드하거나 clone한 폴더에서 Windows는 install-windows.cmd, macOS는 install.command, Linux는 sh ./install.command --no-gui를 실행하세요. CLI 설치·로그인과 상세 순서는 위의 로컬 codex 연결 방법을 확인하세요. 원인: '+(error.message||'Chrome 연결 오류'));}
+ catch (error) {throw Error('로컬 연결 실패: 다운로드하거나 clone한 폴더에서 Windows는 install-windows.cmd, macOS는 install.command, Linux는 sh ./install.command --no-gui를 실행하세요. CLI 설치·로그인과 상세 순서는 위의 로컬 연결 방법을 확인하세요. 원인: '+(error.message||'Chrome 연결 오류'));}
 }
 chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
  if(sender.id!==chrome.runtime.id||sender.url!==chrome.runtime.getURL('popup.html'))return;
