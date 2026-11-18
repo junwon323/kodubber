@@ -1,4 +1,4 @@
-importScripts('speech-text.js');
+importScripts('speech-text.js', 'remote-config.js', 'remote-client.js');
 const HOST = 'com.codex.korean_dubber';
 let owner = null;
 
@@ -23,12 +23,14 @@ function speak(text, voice, onEvent) {
 chrome.runtime.onConnect.addListener(port => {
   if (port.name !== 'dub' || port.sender?.frameId !== 0 ||
       !port.sender.url?.startsWith('https://www.youtube.com/')) return;
-  let busy = false, closed = false, voice;
+  let busy = false, closed = false, voice, mode;
+  let translationController;
   let formulaSeen = new Set(), speechGeneration = 0;
   const send = msg => {if (!closed) port.postMessage(msg);};
   const current = {send};
   port.onDisconnect.addListener(() => {
     closed = true;
+    translationController?.abort();
     speechGeneration++;
     if (owner === current) {owner = null; chrome.tts.stop();}
   });
@@ -40,6 +42,11 @@ chrome.runtime.onConnect.addListener(port => {
         chrome.tts.stop();
         formulaSeen.clear();
         speechGeneration++;
+        mode = await translationMode();
+        if (mode === 'office') {
+          const session = await officeSession();
+          await officeRequest('/v1/session', {token:session.token});
+        }
         voice = await selectVoice(msg.voice);
         if (closed || owner !== current) return;
         send({type: 'ready'});
@@ -47,7 +54,8 @@ chrome.runtime.onConnect.addListener(port => {
         if (msg.type === 'translate' && !busy) {
           busy = true;
           try {
-            const result = await chrome.runtime.sendNativeMessage(HOST, {lines: msg.lines});
+            translationController = new AbortController();
+            const result = mode === 'office' ? await officeTranslate(msg.lines, translationController.signal) : await localTranslate(msg.lines);
             if (result.error) throw Error(result.error);
             send({type: 'result', start: msg.start, lines: result.lines});
           } finally {busy = false;}

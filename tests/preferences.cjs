@@ -12,7 +12,7 @@ test('worker selects the requested Korean voice and uses the teacher translation
       sendNativeMessage: async (_, msg) => {request = msg; return {lines: ['안녕하세요']};}},
     tts: {stop() {}, getVoices: async () => voices, speak: (_, options) => {speech = options;}}
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../extension/speech-text.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../extension/background.js'), 'utf8'), {chrome, importScripts() {}});
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../extension/speech-text.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../extension/background.js'), 'utf8'), {chrome, importScripts() {}, translationMode:async()=>"local", localTranslate:lines=>chrome.runtime.sendNativeMessage("test",{lines}), AbortController});
   connect({name: 'dub', sender: {frameId: 0, url: 'https://www.youtube.com/watch'},
     onMessage: {addListener: fn => receive = fn}, onDisconnect: {addListener() {}}, postMessage() {}});
   await receive({type: 'open', voice: JSON.stringify(['second', '한국어', 'ko-KR']), style: 'friendly'});
@@ -27,6 +27,6 @@ test('worker selects the requested Korean voice and uses the teacher translation
 test('old API key is removed on worker startup', async () => {
   const removed=[];
   const chrome={storage:{local:{remove:async key=>removed.push(key)}},runtime:{onConnect:{addListener(){}}}};
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../extension/speech-text.js'),'utf8')+'\n'+fs.readFileSync(path.join(__dirname,'../extension/background.js'),'utf8'),{chrome,importScripts(){}});
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../extension/speech-text.js'),'utf8')+'\n'+fs.readFileSync(path.join(__dirname,'../extension/background.js'),'utf8'),{chrome,importScripts(){}, translationMode:async()=>"local", localTranslate:lines=>chrome.runtime.sendNativeMessage("test",{lines}), AbortController});
   assert.deepEqual(removed,['geminiApiKey']);
 });

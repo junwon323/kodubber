@@ -14,3 +14,8 @@ credentials.json
 *.pfx
 *.config
 *.log
+
+# Server authentication state (must live outside the repository)
+users.json
+sessions.json
+usage.json

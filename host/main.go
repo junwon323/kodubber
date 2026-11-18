@@ -162,6 +162,9 @@ func parse(data []byte, maxLines, maxChars int) (captions, error) {
 	return c, nil
 }
 func translate(dir string, data []byte) (captions, error) {
+	return translateContext(context.Background(), dir, data)
+}
+func translateContext(parent context.Context, dir string, data []byte) (captions, error) {
 	c, err := parse(data, 24, 1200)
 	if err != nil {
 		return c, err
@@ -188,7 +191,7 @@ func translate(dir string, data []byte) (captions, error) {
 	if err = os.WriteFile(filepath.Join(tmp, "schema"), []byte(schema), 0600); err != nil {
 		return c, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 120*time.Second)
 	defer cancel()
 	args := []string{"exec", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--sandbox", "read-only", "--disable", "shell_tool", "--disable", "apps", "--disable", "plugins", "--disable", "hooks", "-c", `web_search="disabled"`, "--model", "gpt-6.1-terra", "-c", `model_reasoning_effort="medium"`, "--output-schema", "schema", "-o", "result", "-"}
 	if cfg.Entrypoint != "" {
@@ -248,7 +251,11 @@ func serve(dir string) error {
 func main() {
 	dir, err := registerDir()
 	if err == nil {
-		if len(os.Args) == 2 && os.Args[1] == "install" {
+		if len(os.Args) > 1 && os.Args[1] == "server" {
+			err = runServer(dir)
+		} else if len(os.Args) > 1 && os.Args[1] == "user" {
+			err = manageUser(os.Args[2:])
+		} else if len(os.Args) == 2 && os.Args[1] == "install" {
 			err = install(dir)
 		} else {
 			err = serve(dir)
