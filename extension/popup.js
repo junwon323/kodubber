@@ -94,12 +94,13 @@ document.querySelector('#voice').onchange=event=>localStorage.setItem('voice',ev
 loadVoices();
 
 const rateSelect=document.querySelector('#speech-rate');
-const speedValues=[1.04,1.06,1.08],speedLabels=['조금 느리게','기본','조금 빠르게'];
+const speedValues=[1,1.5,2],speedLabels=['조금 느리게','기본','조금 빠르게'];
 function updateSpeedLabel(){rateSelect.setAttribute('aria-valuetext',speedLabels[Number(rateSelect.value)]||'기본');}
 rateSelect.oninput=updateSpeedLabel;
 (async()=>{
  try {
-  const {speechRate}=await chrome.storage.local.get('speechRate');
+  const settings=await chrome.storage.local.get('speechRate');
+  const speechRate=({1.04:1,1.06:1.5,1.08:2})[settings.speechRate] ?? settings.speechRate;
   rateSelect.value=String(speedValues.includes(speechRate)?speedValues.indexOf(speechRate):1);
   updateSpeedLabel();
   rateSelect.disabled=false;

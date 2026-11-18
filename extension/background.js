@@ -63,7 +63,8 @@ chrome.runtime.onConnect.addListener(port => {
           const generation = ++speechGeneration;
           const settings = await chrome.storage?.local.get?.('speechRate');
           if (closed || owner !== current || generation !== speechGeneration) return;
-          const rate = [1.04,1.06,1.08].includes(settings?.speechRate) ? settings.speechRate : 1.06;
+          const savedRate = ({1.04:1,1.06:1.5,1.08:2})[settings?.speechRate] ?? settings?.speechRate;
+          const rate = [1,1.5,2].includes(savedRate) ? savedRate : 1.5;
           const pendingSeen = new Set(formulaSeen);
           const spokenText = speechText(msg.text, pendingSeen);
           speak(spokenText, voice, rate, event => {
