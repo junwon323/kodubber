@@ -29,6 +29,29 @@ const Captions = (() => {
         row.end > row.start && row.text && row.text.length <= 1200)
       .sort((a, b) => a.start - b.start);
   }
+  function json(data) {
+    const rows = [];
+    for (const event of data.events || []) {
+      if (!Array.isArray(event.segs)) continue;
+      const start = event.tStartMs / 1000;
+      const end = start + event.dDurationMs / 1000;
+      const segments = event.segs;
+      // Split only at known source timestamps, never estimate timing from text length.
+      let text = '', sentenceStart = start;
+      for (let i = 0; i < segments.length; i++) {
+        text += segments[i].utf8 || '';
+        const next = segments[i + 1];
+        const boundary = next && Number.isFinite(next.tOffsetMs) ? start + next.tOffsetMs / 1000 : NaN;
+        if (/[.!?。？！]["”’)]?\s*$/.test(text) && boundary > sentenceStart && boundary < end) {
+          rows.push({start: sentenceStart, end: boundary, text});
+          sentenceStart = boundary;
+          text = '';
+        }
+      }
+      if (text.trim()) rows.push({start: sentenceStart, end, text});
+    }
+    return normalize(rows);
+  }
   function group(rows) {
     const grouped = [];
     for (const row of rows) {
@@ -39,9 +62,8 @@ const Captions = (() => {
       const gap = previous ? row.start - previous.end : Infinity;
       const span = previous ? row.end - previous.start : Infinity;
       const continuation = !finished && gap <= 1.5 && span <= 40;
-      const shortSentence = finished && gap <= 0.5 &&
-        previous.end - previous.start < 6 && span <= 12;
-      if (previous && (continuation || shortSentence) &&
+      // Completed sentences retain their own source start time, even when short.
+      if (previous && continuation &&
           previous.text.length + row.text.length < 1100) {
         if (previous.text !== row.text) previous.text += ' ' + row.text;
         previous.end = Math.max(previous.end, row.end);
@@ -58,5 +80,5 @@ const Captions = (() => {
     }
     return lo - 1;
   }
-  return {vtt, normalize, group, at};
+  return {vtt, json, normalize, group, at};
 })();

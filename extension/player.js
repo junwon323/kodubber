@@ -70,10 +70,7 @@ async function captions(v, id) {
   } else {
     let data;
     try { data = JSON.parse(raw); } catch { throw Error('유튜브 자막 응답을 해석하지 못했습니다.'); }
-    rows = Captions.normalize((data.events || []).filter(e => Array.isArray(e.segs)).map(e => ({
-      start: e.tStartMs / 1000, end: (e.tStartMs + e.dDurationMs) / 1000,
-      text: e.segs.map(s => s.utf8 || '').join('')
-    })));
+    rows = Captions.json(data);
   }
   if (rows.length) return rows;
   throw Error('자막 응답에 시간 정보가 없습니다. CC를 껐다 켠 뒤 다시 시도해 주세요.');
@@ -192,7 +189,7 @@ async function start({file, voice}) {
       status = '다음 구간을 미리 번역 중 · 준비되면 이어집니다';
       return;
     }
-    if (last === i) { resume(); return; }
+    if (last === i) { resume(); status = '다음 문장 시작 대기 중'; return; }
     last = i;
     const text = cache.get(i);
     s.wasMuted = s.mutedByUs ? s.wasMuted : video.muted;

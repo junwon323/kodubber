@@ -61,3 +61,22 @@ test('subtitle parsing, lookahead, seek, pause, speed and restoring mute', async
   assert.equal((await state('status')).enabled, false);
   assert.equal(video.muted, false);
 });
+
+test('short sentences are translated together but spoken only at their own start', async () => {
+  let tick, message, receive;
+  const sent=[];
+  const video=Object.assign(new EventTarget(),{isConnected:true,currentTime:0,muted:false,paused:false,
+    pause(){this.paused=true;this.dispatchEvent(new Event('pause'));},async play(){this.paused=false;}});
+  const port={onMessage:{addListener:f=>receive=f},onDisconnect:{addListener(){}},postMessage:m=>sent.push(m),disconnect(){}};
+  const ctx=vm.createContext({URL,AbortController,window:new EventTarget(),location:{href:'https://www.youtube.com/watch?v=timing'},document:{querySelector:s=>s.startsWith('video')?video:null},chrome:{runtime:{connect:()=>port,onMessage:{addListener:f=>message=f}}},setInterval:f=>{tick=f;return 1;},clearInterval(){}});
+  vm.runInContext(script('cues.js'),ctx);vm.runInContext(script('player.js'),ctx);
+  message({type:'start',file:'WEBVTT\n\n00:00.000 --> 00:04.000\nFirst sentence.\n\n00:04.000 --> 00:08.000\nSecond sentence.'},{},()=>{});
+  receive({type:'ready'});
+  const req=sent.find(m=>m.type==='translate');assert.equal(req.lines.length,2);
+  receive({type:'result',start:0,lines:['첫 문장.','둘째 문장.']});
+  const first=sent.at(-1);assert.equal(first.text,'첫 문장.');assert.equal(first.rate,1.07);
+  video.currentTime=2;receive({type:'speech-end',speechId:first.speechId});
+  video.currentTime=3.9;tick();assert.equal(sent.filter(m=>m.type==='speak').length,1,'early completion must not read the next sentence early');
+  video.currentTime=4;tick();assert.equal(sent.at(-1).text,'둘째 문장.');
+  assert.equal(sent.at(-1).rate,1.07);assert.equal(video.paused,false);
+});
