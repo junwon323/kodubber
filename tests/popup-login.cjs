@@ -5,7 +5,7 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve));
 function popup(state){
  const nodes=Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(m=>['#'+m[1],{value:'',hidden:true,setAttribute(){},replaceChildren(){},add(){}}]));
  const calls=[];let added,removed;
- const chrome={tabs:{query:async()=>[{id:1}],sendMessage:async()=>({enabled:false,status:'대기 중'})},tts:{getVoices:async()=>[]},storage:{local:{get:async()=>({speechRate:state.speechRate}),set:async data=>Object.assign(state,data)}},permissions:{contains:async()=>state.granted,request:async()=>{calls.push('permission');state.granted=state.allow;return state.granted;},onAdded:{addListener:f=>added=f},onRemoved:{addListener:f=>removed=f}},runtime:{sendMessage:async msg=>{calls.push(msg.type);if(msg.type==='office-login'){state.email=msg.email;return {email:state.email};}return {mode:'office',email:state.email};}}};
+ const chrome={tabs:{query:async()=>[{id:1,url:state.url||'https://www.youtube.com/watch?v=test'}],sendMessage:async()=>{if(state.missing)throw Error('Could not establish connection. Receiving end does not exist.');return {enabled:false,status:'대기 중'};}},scripting:{executeScript:async args=>{calls.push(args.files.join(','));if(args.files.includes('player.js'))state.missing=false;}},tts:{getVoices:async()=>[]},storage:{local:{get:async()=>({speechRate:state.speechRate}),set:async data=>Object.assign(state,data)}},permissions:{contains:async()=>state.granted,request:async()=>{calls.push('permission');state.granted=state.allow;return state.granted;},onAdded:{addListener:f=>added=f},onRemoved:{addListener:f=>removed=f}},runtime:{sendMessage:async msg=>{calls.push(msg.type);if(msg.type==='office-login'){state.email=msg.email;return {email:state.email};}return {mode:'office',email:state.email};}}};
  const c={chrome,document:{querySelector:s=>nodes[s]},localStorage:{getItem:()=>'',setItem(){}},setInterval(){},OFFICE_ORIGIN:'https://office.example'};
  vm.createContext(c);vm.runInContext(source,c);return {nodes,calls,added:()=>added(),removed:()=>removed()};
 }
@@ -35,4 +35,16 @@ test('speech speed defaults to normal and is saved across popup reopening',async
   assert.equal(state.speechRate,Number(speed));f=popup(state);await flush();
   assert.equal(f.nodes['#speech-rate'].value,position);
  }
+});
+
+test('already-open YouTube tab reconnects automatically without a page reload',async()=>{
+ const f=popup({granted:true,missing:true});await flush();await flush();
+ assert.equal(f.calls.filter(x=>x==='caption-source.js').length,1);
+ assert.equal(f.calls.filter(x=>x==='cues.js,player.js').length,1);
+ assert.equal(f.nodes['#toggle'].disabled,false);
+});
+test('automatic reconnection never injects into an unrelated website',async()=>{
+ const f=popup({granted:true,missing:true,url:'https://example.com'});await flush();
+ assert.equal(f.calls.includes('caption-source.js'),false);
+ assert.match(f.nodes['#status'].textContent,/유튜브 영상 탭/);
 });

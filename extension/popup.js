@@ -4,11 +4,31 @@ let enabled = false;
 let sequence = 0;
 let updating = false;
 
+let reconnecting=null;
+const reconnectAttempted=new Set();
+async function sendToVideo(tab, message) {
+ try {return await chrome.tabs.sendMessage(tab.id,message);}
+ catch(error){
+  if(!/Receiving end|Could not establish connection|message port closed/i.test(error.message))throw error;
+  if(!/^https:\/\/www\.youtube\.com\//.test(tab.url||''))throw Error('유튜브 영상 탭에서 확장을 열어 주세요.');
+  if(!reconnecting){
+   if(reconnectAttempted.has(tab.id))throw Error('영상 연결에 실패했습니다. 확장을 다시 열어 주세요.');
+   reconnectAttempted.add(tab.id);
+   output.textContent='영상에 자동으로 다시 연결하는 중';
+   reconnecting=(async()=>{
+    await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',files:['caption-source.js']});
+    await chrome.scripting.executeScript({target:{tabId:tab.id},files:['cues.js','player.js']});
+   })();
+  }
+  try {await reconnecting;}finally{reconnecting=null;}
+  return chrome.tabs.sendMessage(tab.id,message);
+ }
+}
 async function command(type) {
   const request = ++sequence;
   try {
     const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-    const reply = await chrome.tabs.sendMessage(tab.id, {type, voice: localStorage.getItem('voice') || ''});
+    const reply = await sendToVideo(tab, {type, voice: localStorage.getItem('voice') || ''});
     if (request !== sequence) return;
     enabled = reply.enabled;
     toggle.textContent = enabled ? '더빙 끄기' : '더빙 켜기';

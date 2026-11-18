@@ -1,5 +1,5 @@
 /* Shared by the content script and the browser fixture. */
-const Captions = (() => {
+var Captions = (() => {
   function stripMarkup(text) {
     return text.replace(/(^|[^\w])\*\*\s*([^*]+?)\s*\*\*(?=$|[^\w])/g, (_, before, inner) => before + inner.trim())
       .replace(/(^|[^\w])__\s*([^_]+?)\s*__(?=$|[^\w])/g, (_, before, inner) => before + inner.trim())

@@ -77,3 +77,15 @@ test('short sentences are translated together but spoken only at their own start
   video.currentTime=3.9;tick();assert.equal(sent.filter(m=>m.type==='speak').length,1,'early completion must not read the next sentence early');
   video.currentTime=4;tick();assert.equal(sent.at(-1).text,'둘째 문장.');assert.equal(video.paused,false);
 });
+
+test('player waits for delayed video and reinjection does not duplicate listeners',async()=>{
+ let message,available=false,listeners=0;
+ const video={muted:false,paused:true,textTracks:[],addEventListener(){}};
+ const port={onMessage:{addListener(){}},onDisconnect:{addListener(){}},postMessage(){}};
+ const ctx=vm.createContext({URL,AbortController,window:{addEventListener(){}},location:{href:'https://www.youtube.com/watch?v=test'},document:{querySelector:s=>s.startsWith('video')&&available?video:null},chrome:{runtime:{onMessage:{addListener:f=>{listeners++;message=f;}},connect:()=>port}},setTimeout:fn=>{available=true;queueMicrotask(fn);},setInterval:()=>1,clearInterval(){}});
+ vm.runInContext(script('cues.js'),ctx);vm.runInContext(script('player.js'),ctx);
+ vm.runInContext(script('cues.js'),ctx);vm.runInContext(script('player.js'),ctx);assert.equal(listeners,1);
+ message({type:'start',file:'WEBVTT\n\n00:00.000 --> 00:01.000\nHello.'},{},()=>{});
+ await new Promise(resolve=>setImmediate(resolve));
+ let result;message({type:'status'},{},r=>result=r);assert.equal(result.enabled,true);assert.match(result.status,/음성 확인/);
+});

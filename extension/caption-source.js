@@ -1,5 +1,7 @@
 /* Runs in the page world to read the player's response and caption responses. */
 (() => {
+  if (window.__koreanDubberCaptionsInstalled) return;
+  window.__koreanDubberCaptionsInstalled = true;
   const originalFetch = window.fetch;
   const cache = new Map();
   const limit = 2_000_000;

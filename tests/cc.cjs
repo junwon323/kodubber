@@ -2,7 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),vm=requir
 function fixture(initial){
  let state=initial;const clicks=[];const button={isConnected:true,getAttribute:key=>key==='aria-pressed'?state:null,click(){state=state==='true'?'false':'true';clicks.push(state);}};
  const location={href:'https://www.youtube.com/watch?v=one'};
- const c={setTimeout:fn=>{queueMicrotask(fn);return 1;},URL,location,document:{querySelector:()=>button},chrome:{runtime:{onMessage:{addListener(){}}}},window:{addEventListener(){}}};vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/player.js'),'utf8'),c);
+ const c={setTimeout:fn=>{queueMicrotask(fn);return 1;},URL,location,document:{querySelector:()=>button},chrome:{runtime:{onMessage:{addListener(){}}}},window:{addEventListener(){}}};vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/player.js'),'utf8').replace(/\}\)\(\);\s*$/, `Object.assign(globalThis,{enableCC,hideCC,restoreCC,collectCaptions,refreshCC,finish});Object.defineProperty(globalThis,'captions',{get:()=>captions,set:value=>{captions=value;}});})();`),c);
  return {c,clicks,state:()=>state,set:s=>state=s,location};
 }
 test('initial CC off: enable for capture, hide, keep off on stop',()=>{const f=fixture('false');f.c.enableCC('one');assert.equal(f.state(),'true');f.c.hideCC();assert.equal(f.state(),'false');f.c.restoreCC();assert.deepEqual(f.clicks,['true','false']);});

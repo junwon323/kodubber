@@ -1,3 +1,6 @@
+(()=>{
+if(globalThis.__koreanDubberPlayerInstalled)return;
+globalThis.__koreanDubberPlayerInstalled=true;
 let session = null;
 let revision = 0;
 let enabled = false;
@@ -128,9 +131,16 @@ async function start({file, voice}) {
   finish('자막 확인 중');
   enabled = true;
   const version = revision;
-  const video = document.querySelector('video.html5-main-video') || document.querySelector('video');
   const id = videoId();
-  if (!video || !id) throw Error('유튜브 강의 영상 페이지를 열어 주세요.');
+  if (!id) throw Error('유튜브 영상 페이지를 열어 주세요.');
+  let video = document.querySelector('video.html5-main-video') || document.querySelector('video');
+  for (let attempt = 0; !video && attempt < 20; attempt++) {
+    status = '영상 플레이어가 준비되기를 기다리는 중';
+    await new Promise(resolve => setTimeout(resolve, 250));
+    if (version !== revision || videoId() !== id) return;
+    video = document.querySelector('video.html5-main-video') || document.querySelector('video');
+  }
+  if (!video) throw Error('영상 플레이어가 아직 준비되지 않았습니다. 영상이 표시된 뒤 더빙을 다시 켜 주세요.');
   enableCC(id);
   const rows = Captions.group(file ? Captions.vtt(file) : await collectCaptions(video, id, version));
   if (version !== revision) return;
@@ -280,3 +290,5 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   reply({status, enabled});
 });
 window.addEventListener('pagehide', () => finish('더빙 종료'));
+
+})();
