@@ -1,4 +1,4 @@
-importScripts('speech-text.js');
+importScripts('preferences.js', 'speech-text.js');
 const HOST = 'com.codex.korean_dubber';
 let owner = null;
 
@@ -9,7 +9,7 @@ async function localTranslate(lines, provider) {
   try {
     result = await chrome.runtime.sendNativeMessage(HOST, {lines, provider});
   } catch {
-    throw Error('로컬 연결 실패. 확장에 표시된 연결 파일을 다시 실행해 주세요.');
+    throw Error('로컬 연결 실패. README의 안내에 따라 연결 파일을 다시 실행해 주세요.');
   }
   if (result.error) throw Error(result.error);
   return result;
@@ -33,7 +33,7 @@ if (typeof caches !== 'undefined') caches.delete('supertonic-3-aafc6e32').catch(
 
 async function selectVoice(key) {
   const voices = (await chrome.tts.getVoices()).filter(v => /^ko(?:-|$)/i.test(v.lang || ''));
-  const voice = voices.find(v => JSON.stringify([v.extensionId || '', v.voiceName, v.lang]) === key) || voices[0];
+  const voice = voices.find(v => voiceKey(v) === key) || voices[0];
   if (!voice) throw Error('Chrome에서 사용할 수 있는 한국어 음성이 없습니다. 운영체제의 한국어 음성을 설치한 뒤 Chrome을 다시 시작하세요.');
   return voice;
 }
@@ -81,8 +81,7 @@ chrome.runtime.onConnect.addListener(port => {
           const generation = ++speechGeneration;
           const settings = await chrome.storage?.local.get?.('speechRate');
           if (closed || owner !== current || generation !== speechGeneration) return;
-          const savedRate = ({1.04:1,1.06:1.05,1.08:1.1,1.5:1.05,2:1.1})[settings?.speechRate] ?? settings?.speechRate;
-          const rate = [1,1.025,1.05,1.075,1.1].includes(savedRate) ? savedRate : 1.05;
+          const rate = normalizedSpeechRate(settings?.speechRate);
           const pendingSeen = new Set(formulaSeen);
           const spokenText = speechText(msg.text, pendingSeen);
           speak(spokenText, voice, rate, event => {

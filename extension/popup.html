@@ -11,19 +11,12 @@ button{font:inherit;padding:7px 14px;border:1px solid #aab5bf;border-radius:6px;
 <h1>kodubber</h1>
 <p>일반·자동 생성 자막을 한국어로 읽습니다.</p>
 <label>번역 엔진<select id="translation-provider" disabled></select></label>
-<p id="provider-note" hidden></p>
-<div id="local-panel">
-<details id="local-help"><summary>로컬 연결 방법</summary>
-<ol>
-<li>Codex, Claude Code, Antigravity CLI 중 원하는 도구를 설치하고 로그인합니다.</li>
-<li>다운로드하거나 clone한 폴더에서 연결 파일을 한 번 실행합니다.<br>Windows: <code>install-windows.cmd</code><br>macOS: <code>install.command</code><br>Linux: <code>sh ./install.command --no-gui</code></li>
-</ol>
-</details>
-</div>
+<p id="provider-note" hidden>연결된 CLI가 없습니다. Chrome 번역을 선택할 수 있습니다.</p>
 <label id="voice-picker" hidden>한국어 음성<select id="voice"></select></label>
 <p id="voice-note" hidden></p>
 <label>음성 속도<input id="speech-rate" type="range" min="0" max="4" step="1" value="2" aria-valuetext="0, 기본" aria-describedby="speed-help" disabled><span class="speed-labels" aria-hidden="true"><span>-2</span><span>-1</span><span>0</span><span>1</span><span>2</span></span></label>
-<p id="speed-help">더빙이 먼저 끝나 기다리면 느린 쪽으로, 더빙이 늦어 영상이 멈추면 빠른 쪽으로 조절하세요. 변경은 다음 문장부터 적용됩니다.</p>
+<p id="speed-help">더빙이 먼저 끝나 기다리면 느린 쪽으로, 더빙이 늦어 영상이 멈추면 빠른 쪽으로 조절하세요.</p>
 <button id="toggle" aria-pressed="false" disabled>더빙 켜기</button>
 <output id="status" aria-live="polite"></output>
+<script src="preferences.js"></script>
 <script src="popup.js"></script></html>

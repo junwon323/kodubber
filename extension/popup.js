@@ -1,32 +1,36 @@
 const output = document.querySelector('#status');
 const toggle = document.querySelector('#toggle');
 const providerSelect = document.querySelector('#translation-provider');
-const providers = {codex: 'Codex', claude: 'Claude Code', antigravity: 'Antigravity CLI', chrome: 'Chrome 번역'};
+const providers = {codex: 'Codex', claude: 'Claude Code', antigravity: 'Antigravity', chrome: 'Chrome 번역'};
 let providerReady = false;
+let enabled = false;
+let sequence = 0;
+let updating = false;
 
 async function loadProviders() {
   let result;
   try { result = await chrome.runtime.sendMessage({type: 'translation-providers'}); }
   catch { result = null; }
   const found = (result?.providers || []).filter(id => Object.hasOwn(providers, id) && id !== 'chrome');
-  const choices = found.length ? found : ['chrome'];
   const saved = localStorage.getItem('translationProvider');
   providerSelect.replaceChildren();
-  for (const id of choices) providerSelect.add(new Option(providers[id], id));
-  providerSelect.value = choices.includes(saved) ? saved : choices[0];
-  providerSelect.disabled = enabled || choices.length === 1;
-  const note = document.querySelector('#provider-note');
-  note.hidden = found.length > 0;
-  note.textContent = result?.connected
-    ? 'CLI가 없어 Chrome 번역을 사용합니다.'
-    : 'CLI를 사용하려면 아래 로컬 연결 파일을 한 번 실행하세요.';
+  if (!found.length) {
+    const prompt = new Option('번역 엔진을 선택하세요', '');
+    prompt.disabled = true;
+    providerSelect.add(prompt);
+  }
+  for (const id of [...found, 'chrome']) providerSelect.add(new Option(providers[id], id));
+  providerSelect.value = found.includes(saved) ? saved : (found[0] ?? '');
+  providerSelect.disabled = enabled;
+  document.querySelector('#provider-note').hidden = found.length > 0;
   providerReady = true;
 }
-providerSelect.onchange = () => localStorage.setItem('translationProvider', providerSelect.value);
-const providerLoad = loadProviders();
-let enabled = false;
-let sequence = 0;
-let updating = false;
+providerSelect.onchange = () => {
+  const provider = providerSelect.value;
+  if (provider && provider !== 'chrome') localStorage.setItem('translationProvider', provider);
+  if (!updating) command('status');
+};
+
 
 let reconnecting=null;
 const reconnectAttempted=new Set();
@@ -57,14 +61,13 @@ async function command(type) {
     enabled = reply.enabled;
     toggle.textContent = enabled ? '더빙 끄기' : '더빙 켜기';
     toggle.setAttribute('aria-pressed', String(enabled));
-    toggle.disabled = !enabled && !providerReady;
-    providerSelect.disabled = !providerReady || enabled || providerSelect.options.length < 2;
+    toggle.disabled = !enabled && (!providerReady || !providerSelect.value);
+    providerSelect.disabled = !providerReady || enabled;
     document.querySelector('#voice').disabled = enabled;
     output.textContent = reply.status;
-    if (reply.status?.startsWith('로컬 연결 실패')) document.querySelector('#local-help').open = true;
   } catch (e) {
     if (request !== sequence) return;
-    toggle.disabled = type === 'status';
+    toggle.disabled = type === 'status' || (!enabled && !providerSelect.value);
     output.textContent = e.message.includes('Receiving end') ? '유튜브 영상을 열거나 새로고침해 주세요.' : e.message;
   }
 }
@@ -75,21 +78,20 @@ toggle.onclick = async () => {
   try { await command(enabled ? 'stop' : 'start'); }
   finally { updating = false; }
 };
-providerLoad.then(() => command('status'));
+loadProviders().then(() => command('status'));
 setInterval(() => { if (!updating) command('status'); }, 800);
 
 async function loadVoices() {
  const select=document.querySelector('#voice'), note=document.querySelector('#voice-note');
  try {
-  const keyOf=v=>JSON.stringify([v.extensionId||'',v.voiceName,v.lang]);
-  const voices=[...new Map((await chrome.tts.getVoices()).filter(v=>/^ko(?:-|$)/i.test(v.lang||'')).map(v=>[keyOf(v),v])).values()];
+  const voices=[...new Map((await chrome.tts.getVoices()).filter(v=>/^ko(?:-|$)/i.test(v.lang||'')).map(v=>[voiceKey(v),v])).values()];
   const saved=localStorage.getItem('voice')||'';
   select.replaceChildren();
   for(const voice of voices) {
-   const key=JSON.stringify([voice.extensionId||'',voice.voiceName,voice.lang]);
+   const key=voiceKey(voice);
    select.add(new Option(voice.voiceName,key));
   }
-  select.value=voices.some(v=>keyOf(v)===saved)?saved:(voices[0]?keyOf(voices[0]):'');
+  select.value=voices.some(v=>voiceKey(v)===saved)?saved:(voices[0]?voiceKey(voices[0]):'');
   localStorage.setItem('voice',select.value);
   document.querySelector('#voice-picker').hidden=voices.length<2;
   note.hidden=voices.length>0;
@@ -100,20 +102,20 @@ document.querySelector('#voice').onchange=event=>localStorage.setItem('voice',ev
 loadVoices();
 
 const rateSelect=document.querySelector('#speech-rate');
-const speedValues=[1,1.025,1.05,1.075,1.1],speedLabels=['-2, 느리게','-1, 조금 느리게','0, 기본','1, 조금 빠르게','2, 빠르게'];
+const speedLabels=['-2, 느리게','-1, 조금 느리게','0, 기본','1, 조금 빠르게','2, 빠르게'];
 function updateSpeedLabel(){rateSelect.setAttribute('aria-valuetext',speedLabels[Number(rateSelect.value)]||'기본');}
 rateSelect.oninput=updateSpeedLabel;
 (async()=>{
  try {
   const settings=await chrome.storage.local.get('speechRate');
-  const speechRate=({1.04:1,1.06:1.05,1.08:1.1,1.5:1.05,2:1.1})[settings.speechRate] ?? settings.speechRate;
-  rateSelect.value=String(speedValues.includes(speechRate)?speedValues.indexOf(speechRate):2);
+  const speechRate=normalizedSpeechRate(settings.speechRate);
+  rateSelect.value=String(speechRates.indexOf(speechRate));
   updateSpeedLabel();
   rateSelect.disabled=false;
  } catch {output.textContent='속도 설정을 불러오지 못했습니다. 확장을 다시 열어 주세요.';}
 })();
 rateSelect.onchange=async()=>{
- const value=speedValues[Number(rateSelect.value)];
+ const value=speechRates[Number(rateSelect.value)];
  if(value===undefined)return;
  updateSpeedLabel();
  try {await chrome.storage.local.set({speechRate:value});}
