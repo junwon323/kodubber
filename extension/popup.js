@@ -94,7 +94,7 @@ document.querySelector('#voice').onchange=event=>localStorage.setItem('voice',ev
 loadVoices();
 
 const rateSelect=document.querySelector('#speech-rate');
-const speedValues=[1,1.025,1.05,1.075,1.1],speedLabels=['느리게','조금 느리게','기본','조금 빠르게','빠르게'];
+const speedValues=[1,1.025,1.05,1.075,1.1],speedLabels=['-2, 느리게','-1, 조금 느리게','0, 기본','1, 조금 빠르게','2, 빠르게'];
 function updateSpeedLabel(){rateSelect.setAttribute('aria-valuetext',speedLabels[Number(rateSelect.value)]||'기본');}
 rateSelect.oninput=updateSpeedLabel;
 (async()=>{
