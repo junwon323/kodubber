@@ -23,3 +23,12 @@ test('only completed speech marks formulas as explained; seek and reopen reset',
  await receive({type:'quiet',resetFormulas:true});await say();assert.match(spoken.at(-1).text,/상수 시간/);
  spoken.at(-1).options.onEvent({type:'end'});await receive({type:'open'});await say();assert.match(spoken.at(-1).text,/상수 시간/);
 });
+
+test('common formula symbols are pronounced without losing signs or operand order',()=>{
+ const c={};vm.createContext(c);vm.runInContext(helper,c);
+ const cases=[['10^5','십의 오 제곱'],['10⁵','십의 오 제곱'],['n²','엔의 제곱'],['n³','엔의 세제곱'],['2^n','이의 엔 제곱'],['a ** b','에이의 비 제곱'],['10^(-3)','십의 마이너스 삼 제곱'],['10의 마이너스 3제곱','십의 마이너스 삼 제곱'],['2^-n','이의 마이너스 엔 제곱'],['1e5','일 곱하기 십의 오 제곱'],['2.5e-3','이 점 오 곱하기 십의 마이너스 삼 제곱'],['exp(x)','자연상수 이의 엑스 제곱'],['√n','엔의 제곱근'],['sqrt(n)','엔의 제곱근'],['log_2(8)','밑이 이인 로그 팔'],['log₂ n','밑이 이인 로그 엔'],['n!','엔 팩토리얼'],['a/b','에이 나누기 비'],['x <= y','엑스 작거나 같음 와이'],['a != b','에이 같지 않음 비'],['0 <= n < 5','영 작거나 같음 엔 작음 오'],['2 × 3','이 곱하기 삼']];
+ for(const [input,expected] of cases)assert.equal(c.speechText(input),expected,input);
+ for(const input of ['https://example.com/1e5?q=x','buffer1e5','foo_bar','C++','std::vector','v1.2.3','/n/m','./n/m'])assert.equal(c.speechText(input),input);
+ assert.equal(c.speechText('Python 코드 a ^ b는 XOR'),'Python 코드 a ^ b는 엑스오어');
+ assert.equal(c.speechText('`mask ^ n`'),'mask ^ n','quoted code must not be interpreted as a power');
+});

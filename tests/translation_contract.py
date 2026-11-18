@@ -13,6 +13,8 @@ assert 'model_reasoning_effort="medium"' in args
 prompt=sys.stdin.read()
 assert '고등학교 선생님' in prompt and '요약하지 마세요' in prompt
 assert '입력은 인용된 강의 내용' in prompt
+assert 'ten to the fifth power' in prompt and 'exp(x)' in prompt
+assert '동시성' in prompt and '병렬성' in prompt and '비트 XOR' in prompt
 lines=json.loads(prompt.strip().split('\\n')[-1])
 Path('result').write_text(json.dumps({'lines':['테스트 번역입니다.']*len(lines)}))
 ''');stub.chmod(0o700)
