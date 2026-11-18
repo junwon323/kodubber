@@ -30,7 +30,7 @@ test('denied permission keeps credentials hidden and sends no login',async()=>{
 test('speech speed defaults to normal and is saved across popup reopening',async()=>{
  const state={granted:true};let f=popup(state);await flush();
  assert.equal(f.nodes['#speech-rate'].value,'1');assert.equal(f.nodes['#speech-rate'].disabled,false);
- for(const [position,speed] of [['0',1],['2',2],['1',1.5]]){
+ for(const [position,speed] of [['0',1],['2',1.1],['1',1.05]]){
   f.nodes['#speech-rate'].value=position;await f.nodes['#speech-rate'].onchange();
   assert.equal(state.speechRate,Number(speed));f=popup(state);await flush();
   assert.equal(f.nodes['#speech-rate'].value,position);
