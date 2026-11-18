@@ -20,7 +20,8 @@ button{font:inherit;padding:7px 14px;border:1px solid #aab5bf;border-radius:6px;
 </div>
 <div id="office-panel" hidden>
 <p id="account-status">허용된 계정으로 로그인해 주세요.</p>
-<form id="login-form">
+<button id="office-permission" type="button" hidden>사무실 연결 허용</button>
+<form id="login-form" hidden>
 <label>이메일<input id="email" type="email" autocomplete="username" required maxlength="254"></label>
 <label>비밀번호<input id="password" type="password" autocomplete="current-password" required maxlength="256"></label>
 <button id="login" type="submit">로그인</button>

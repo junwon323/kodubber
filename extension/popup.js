@@ -35,17 +35,34 @@ command('status');
 setInterval(() => { if (!updating) command('status'); }, 800);
 
 const modeSelect=document.querySelector('#translation-mode');
+const officePermission={origins:[OFFICE_ORIGIN+'/*']};
+let accountRevision=0;
 async function refreshAccount(){
- const state=await chrome.runtime.sendMessage({type:'office-state'});
+ const revision=++accountRevision;
+ const [state,granted]=await Promise.all([
+  chrome.runtime.sendMessage({type:'office-state'}),chrome.permissions.contains(officePermission)
+ ]);
+ if(revision!==accountRevision)return;
  modeSelect.value=state.mode||'local';document.querySelector('#local-panel').hidden=modeSelect.value!=='local';document.querySelector('#office-panel').hidden=modeSelect.value!=='office';
- document.querySelector('#account-status').textContent=state.email?state.email+' · 로그인됨':'허용된 계정으로 로그인해 주세요.';
- document.querySelector('#login-form').hidden=!!state.email;document.querySelector('#logout').hidden=!state.email;
+ document.querySelector('#office-permission').hidden=granted;
+ document.querySelector('#account-status').textContent=!granted?'먼저 사무실 연결을 허용해 주세요.':state.email?state.email+' · 로그인됨':'허용된 계정으로 로그인해 주세요.';
+ document.querySelector('#login-form').hidden=!granted||!!state.email;document.querySelector('#logout').hidden=!state.email;
 }
+document.querySelector('#office-permission').onclick=async()=>{
+ const button=document.querySelector('#office-permission'),status=document.querySelector('#login-status');button.disabled=true;
+ try {
+  const granted=await chrome.permissions.request(officePermission);
+  status.textContent=granted?'':'연결을 허용해야 사무실 번역을 사용할 수 있습니다.';
+  await refreshAccount();
+ } catch(error){status.textContent=error.message;}finally{button.disabled=false;}
+};
+chrome.permissions.onAdded.addListener(()=>refreshAccount());
+chrome.permissions.onRemoved.addListener(()=>refreshAccount());
 modeSelect.onchange=async()=>{await chrome.storage.local.set({translationMode:modeSelect.value});await refreshAccount();};
 document.querySelector('#login-form').onsubmit=async event=>{
  event.preventDefault();const button=document.querySelector('#login'),status=document.querySelector('#login-status');button.disabled=true;
  try{
-  const granted=await chrome.permissions.request({origins:[OFFICE_ORIGIN+'/*']});if(!granted)throw Error('사무실 서버 연결 권한이 필요합니다.');
+  if(!await chrome.permissions.contains(officePermission)){await refreshAccount();throw Error('먼저 사무실 연결 허용 버튼을 눌러 주세요.');}
   const result=await chrome.runtime.sendMessage({type:'office-login',email:document.querySelector('#email').value,password:document.querySelector('#password').value});
   if(result.error)throw Error(result.error);status.textContent='로그인되었습니다.';await refreshAccount();
  }catch(error){status.textContent=error.message;}finally{document.querySelector('#password').value='';button.disabled=false;}
