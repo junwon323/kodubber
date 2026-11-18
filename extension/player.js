@@ -107,7 +107,7 @@ async function start({file, voice}) {
   hideCC();
   const port = chrome.runtime.connect({name: 'dub'});
   const s = session = {video, port, events: new AbortController(), wasMuted: video.muted, mutedByUs: false};
-  const speechRate = 1.07;
+  const speechRate = 1.05;
   const cache = new Map();
   let heartbeat = 0;
   let last = -1, pending = null, ready = false, talking = false;

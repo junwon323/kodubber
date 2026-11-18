@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "강의 한국어 더빙",
-  "version": "0.12.4",
+  "version": "0.12.5",
   "description": "Codex로 유튜브 강의 자막을 번역하고 한국어 음성으로 재생합니다.",
   "key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE6Vsyxm0j1JaEaFEQhKU1gCnpVp5nbCL/UWwgkJFZcFJGFc0vK3//D/OklO9PSPrtrv0xDgTfxMFAe0dVOSPcxg==",
   "permissions": [

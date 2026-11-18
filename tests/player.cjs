@@ -30,7 +30,7 @@ test('subtitle parsing, lookahead, seek, pause, speed and restoring mute', async
   fromWorker({type: 'result', start: 0, lines: ['이진 탐색.', '다음.']});
   assert.equal(sent.at(-1).text, '이진 탐색.');
   assert.equal(video.muted, true);
-  assert.equal(sent.at(-1).rate, 1.07);
+  assert.equal(sent.at(-1).rate, 1.05);
   const firstSpeech = sent.at(-1);
   video.currentTime = 5.1;
   tick();
@@ -55,7 +55,7 @@ test('subtitle parsing, lookahead, seek, pause, speed and restoring mute', async
   video.dispatchEvent(new Event('ratechange'));
   tick();
   assert.equal(sent.at(-1).type, 'speak');
-  assert.equal(sent.at(-1).rate, 1.07);
+  assert.equal(sent.at(-1).rate, 1.05);
   assert.equal((await state('stop')).enabled, false);
   fromWorker({type: 'result', start: 0, lines: ['늦게 도착한 결과']});
   assert.equal((await state('status')).enabled, false);
@@ -74,9 +74,9 @@ test('short sentences are translated together but spoken only at their own start
   receive({type:'ready'});
   const req=sent.find(m=>m.type==='translate');assert.equal(req.lines.length,2);
   receive({type:'result',start:0,lines:['첫 문장.','둘째 문장.']});
-  const first=sent.at(-1);assert.equal(first.text,'첫 문장.');assert.equal(first.rate,1.07);
+  const first=sent.at(-1);assert.equal(first.text,'첫 문장.');assert.equal(first.rate,1.05);
   video.currentTime=2;receive({type:'speech-end',speechId:first.speechId});
   video.currentTime=3.9;tick();assert.equal(sent.filter(m=>m.type==='speak').length,1,'early completion must not read the next sentence early');
   video.currentTime=4;tick();assert.equal(sent.at(-1).text,'둘째 문장.');
-  assert.equal(sent.at(-1).rate,1.07);assert.equal(video.paused,false);
+  assert.equal(sent.at(-1).rate,1.05);assert.equal(video.paused,false);
 });
