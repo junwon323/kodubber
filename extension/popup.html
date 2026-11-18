@@ -33,7 +33,8 @@ button{font:inherit;padding:7px 14px;border:1px solid #aab5bf;border-radius:6px;
 </div>
 <label id="voice-picker" hidden>한국어 음성<select id="voice"></select></label>
 <p id="voice-note" hidden></p>
-<label>음성 속도<input id="speech-rate" type="range" min="0" max="2" step="1" value="1" aria-valuetext="기본" disabled><span class="speed-labels" aria-hidden="true"><span>조금 느리게</span><span>기본</span><span>조금 빠르게</span></span></label>
+<label>음성 속도<input id="speech-rate" type="range" min="0" max="4" step="1" value="2" aria-valuetext="기본" aria-describedby="speed-help" disabled><span class="speed-labels" aria-hidden="true"><span>느리게</span><span>기본</span><span>빠르게</span></span></label>
+<p id="speed-help">더빙이 먼저 끝나 기다리면 느린 쪽으로, 더빙이 늦어 영상이 멈추면 빠른 쪽으로 조절하세요. 변경은 다음 문장부터 적용됩니다.</p>
 <button id="toggle" aria-pressed="false" disabled>더빙 켜기</button>
 <output id="status" aria-live="polite"></output>
 <script src="remote-config.js"></script><script src="popup.js"></script></html>

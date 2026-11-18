@@ -94,14 +94,14 @@ document.querySelector('#voice').onchange=event=>localStorage.setItem('voice',ev
 loadVoices();
 
 const rateSelect=document.querySelector('#speech-rate');
-const speedValues=[1,1.05,1.1],speedLabels=['조금 느리게','기본','조금 빠르게'];
+const speedValues=[1,1.025,1.05,1.075,1.1],speedLabels=['느리게','조금 느리게','기본','조금 빠르게','빠르게'];
 function updateSpeedLabel(){rateSelect.setAttribute('aria-valuetext',speedLabels[Number(rateSelect.value)]||'기본');}
 rateSelect.oninput=updateSpeedLabel;
 (async()=>{
  try {
   const settings=await chrome.storage.local.get('speechRate');
   const speechRate=({1.04:1,1.06:1.05,1.08:1.1,1.5:1.05,2:1.1})[settings.speechRate] ?? settings.speechRate;
-  rateSelect.value=String(speedValues.includes(speechRate)?speedValues.indexOf(speechRate):1);
+  rateSelect.value=String(speedValues.includes(speechRate)?speedValues.indexOf(speechRate):2);
   updateSpeedLabel();
   rateSelect.disabled=false;
  } catch {output.textContent='속도 설정을 불러오지 못했습니다. 확장을 다시 열어 주세요.';}

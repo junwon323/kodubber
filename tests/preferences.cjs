@@ -24,7 +24,7 @@ test('worker selects the requested Korean voice and uses the teacher translation
   assert.equal(speech.extensionId, 'second');
   assert.equal(speech.lang, 'ko-KR');
   assert.equal(speech.rate, 1.05);
-  for(const rate of [1,1.1,1.05]){
+  for(const rate of [1,1.025,1.05,1.075,1.1]){
     savedRate=rate;
     assert.notEqual(speech.rate,undefined);
     const previous=speech;
