@@ -1,7 +1,6 @@
 importScripts('speech-text.js');
 const HOST = 'com.codex.korean_dubber';
 let owner = null;
-let previewToken = 0;
 
 // Remove credentials and model cache retained by earlier versions.
 chrome.storage?.local.remove('geminiApiKey').catch(() => {});
@@ -13,7 +12,7 @@ async function selectVoice(key) {
   if (!voice) throw Error('Chrome에서 사용할 수 있는 한국어 음성이 없습니다. 운영체제의 한국어 음성을 설치한 뒤 Chrome을 다시 시작하세요.');
   return voice;
 }
-function speak(text, voice, rate, onEvent) {
+function speak(text, voice, onEvent) {
   chrome.tts.speak(text, {
     ...(voice.extensionId ? {extensionId: voice.extensionId} : {}),
     voiceName: voice.voiceName, lang: voice.lang,
@@ -21,34 +20,10 @@ function speak(text, voice, rate, onEvent) {
     onEvent
   });
 }
-chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('popup.html')) return;
-  if (msg.type === 'preview') {
-    if (owner) {reply({error: '더빙을 끈 뒤 미리듣기를 눌러 주세요.'}); return;}
-    const token = ++previewToken;
-    chrome.tts.stop();
-    selectVoice(msg.voice).then(voice => {
-      if (token !== previewToken || owner) {reply({ok: true}); return;}
-      speak('안녕하세요. 이진 탐색은 정렬된 배열에서 탐색 범위를 절반으로 줄이는 방법입니다.', voice, msg.rate, event => {
-        if (token !== previewToken || owner) return;
-        const text = event.type === 'error' ? event.errorMessage || '음성 재생 실패' :
-          event.type === 'start' ? '음성 재생 중' : event.type === 'end' ? '미리듣기 완료' : null;
-        if (text) chrome.runtime.sendMessage({target: 'preview-status', text}).catch(() => {});
-      });
-      reply({ok: true});
-    }).catch(error => reply({error: error.message}));
-    return true;
-  }
-  if (msg.type === 'preview-stop') {
-    previewToken++;
-    if (!owner) chrome.tts.stop();
-    reply({ok: true});
-  }
-});
 chrome.runtime.onConnect.addListener(port => {
   if (port.name !== 'dub' || port.sender?.frameId !== 0 ||
       !port.sender.url?.startsWith('https://www.youtube.com/')) return;
-  let busy = false, closed = false, voice, style;
+  let busy = false, closed = false, voice;
   let formulaSeen = new Set(), speechGeneration = 0;
   const send = msg => {if (!closed) port.postMessage(msg);};
   const current = {send};
@@ -62,9 +37,7 @@ chrome.runtime.onConnect.addListener(port => {
       if (msg.type === 'open') {
         if (owner && owner !== current) owner.send({error: '다른 탭에서 더빙을 시작했습니다.'});
         owner = current;
-        previewToken++;
         chrome.tts.stop();
-        style = 'lecture';
         formulaSeen.clear();
         speechGeneration++;
         voice = await selectVoice(msg.voice);
@@ -74,7 +47,7 @@ chrome.runtime.onConnect.addListener(port => {
         if (msg.type === 'translate' && !busy) {
           busy = true;
           try {
-            const result = await chrome.runtime.sendNativeMessage(HOST, {lines: msg.lines, ...(style === 'lecture' ? {} : {style})});
+            const result = await chrome.runtime.sendNativeMessage(HOST, {lines: msg.lines});
             if (result.error) throw Error(result.error);
             send({type: 'result', start: msg.start, lines: result.lines});
           } finally {busy = false;}
@@ -82,7 +55,7 @@ chrome.runtime.onConnect.addListener(port => {
           const generation = ++speechGeneration;
           const pendingSeen = new Set(formulaSeen);
           const spokenText = speechText(msg.text, pendingSeen);
-          speak(spokenText, voice, msg.rate, event => {
+          speak(spokenText, voice, event => {
             if (closed || owner !== current || generation !== speechGeneration) return;
             if (event.type === 'error') send({error: event.errorMessage || '음성 재생 실패'});
             if (event.type === 'start') send({type: 'speech-start', speechId: msg.speechId});

@@ -24,26 +24,9 @@ test('worker selects the requested Korean voice and uses the teacher translation
   assert.equal(speech.rate, 1.05);
 });
 
-test('Chrome preview works without an API key and ignores playback after cancellation', async () => {
-  let listener, finishLookup, spoken = 0;
-  const removed = [], replies = [];
-  const chrome = {
-    storage: {local: {remove: async key => removed.push(key)}},
-    runtime: {id: 'test', getURL: p => 'chrome-extension://test/' + p,
-      onMessage: {addListener: fn => listener = fn}, onConnect: {addListener() {}}, sendMessage: async () => ({})},
-    tts: {stop() {}, getVoices: () => new Promise(resolve => {finishLookup = resolve;}), speak: () => {spoken++;}}
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../extension/speech-text.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../extension/background.js'), 'utf8'), {chrome, importScripts() {}});
-  const send = msg => listener(msg, {id: 'test', url: chrome.runtime.getURL('popup.html')}, reply => replies.push(reply));
-  send({type: 'preview', voice: ''});
-  send({type: 'preview-stop'});
-  finishLookup([{voiceName: '한국어', lang: 'ko-KR'}]);
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(spoken, 0);
-  send({type: 'preview', voice: ''});
-  finishLookup([{voiceName: '한국어', lang: 'ko-KR'}]);
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(spoken, 1);
-  assert.deepEqual(removed, ['geminiApiKey']);
-  assert.equal(replies.at(-1).ok, true);
+test('old API key is removed on worker startup', async () => {
+  const removed=[];
+  const chrome={storage:{local:{remove:async key=>removed.push(key)}},runtime:{onConnect:{addListener(){}}}};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../extension/speech-text.js'),'utf8')+'\n'+fs.readFileSync(path.join(__dirname,'../extension/background.js'),'utf8'),{chrome,importScripts(){}});
+  assert.deepEqual(removed,['geminiApiKey']);
 });

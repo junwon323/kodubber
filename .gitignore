@@ -1,3 +1,16 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# Local credentials and runtime artifacts
+.env
+.env.*
+!.env.example
+auth.json
+credentials.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.config
+*.log
