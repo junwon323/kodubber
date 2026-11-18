@@ -17,9 +17,16 @@ test('real multiline subtitle files parse',()=>{
  assert.equal(rows.length,2);assert.equal(rows[0].text,'hello');
 });
 
-test('unfinished sentence crosses a short gap and the old 24 second cutoff',()=>{
- const rows=[{start:0,end:10,text:'If the condition holds'},{start:11.2,end:23,text:'we search until'},{start:24,end:30,text:'the answer is found.'},{start:30,end:37,text:'A new sentence.'}];
- const grouped=C.group(rows);assert.equal(grouped.length,2);assert.equal(grouped[0].end,30);assert.equal(grouped[1].start,30);
+test('unpunctuated captions stop at source boundaries within fifteen seconds',()=>{
+ const rows=Array.from({length:20},(_,i)=>({start:i*2,end:i*2+2,text:'word'+i}));
+ const grouped=C.group(rows);
+ assert.ok(grouped.every(row=>row.end-row.start<=15));
+ assert.deepEqual(Array.from(grouped,r=>r.start),[0,14,28]);
+ assert.equal(grouped.map(r=>r.text).join(' '),rows.map(r=>r.text).join(' '));
+});
+test('clause boundaries take priority over filling fifteen seconds',()=>{
+ const rows=C.group([{start:0,end:7,text:'we have checked this case'},{start:7,end:12,text:'however another case remains'}]);
+ assert.equal(rows.length,2);assert.equal(rows[1].start,7);
 });
 
 test('JSON word offsets keep later sentences at their actual source time',()=>{
@@ -30,4 +37,12 @@ test('JSON word offsets keep later sentences at their actual source time',()=>{
  assert.equal(rows[1].text,'Next sentence continues.');
  const unknown=C.json({events:[{tStartMs:1000,dDurationMs:10000,segs:[{utf8:'One.'},{utf8:' Two.'}]}]});
  assert.equal(unknown.length,1,'without source timestamps do not invent alignment');
+});
+
+test('long automatic-caption event uses real word timestamps for shorter chunks',()=>{
+ const segments=Array.from({length:20},(_,i)=>({utf8:(i?' ':'')+'word'+i,tOffsetMs:i*2000}));
+ const rows=C.group(C.json({events:[{tStartMs:1000,dDurationMs:40000,segs:segments}]}));
+ assert.ok(rows.length>=3);assert.ok(rows.every(r=>r.end-r.start<=15));
+ assert.ok(rows.every(r=>(r.start-1)%2===0));
+ assert.equal(rows.map(r=>r.text).join(' '),segments.map(s=>s.utf8).join(''));
 });

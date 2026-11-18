@@ -29,6 +29,11 @@ const Captions = (() => {
         row.end > row.start && row.text && row.text.length <= 1200)
       .sort((a, b) => a.start - b.start);
   }
+  const maxSpan = 15;
+  const sentenceEnd = text => /[.!?。？！]["”’)]?\s*$/.test(text);
+  // Prefer clause boundaries when punctuation is sparse in automatic captions.
+  const clauseBoundary = (before, after) => /[,;:，；：]\s*$/.test(before) ||
+    /^(?:but|however|therefore|instead|otherwise|so|now|next|then)\b/i.test(after.trim());
   function json(data) {
     const rows = [];
     for (const event of data.events || []) {
@@ -42,7 +47,14 @@ const Captions = (() => {
         text += segments[i].utf8 || '';
         const next = segments[i + 1];
         const boundary = next && Number.isFinite(next.tOffsetMs) ? start + next.tOffsetMs / 1000 : NaN;
-        if (/[.!?。？！]["”’)]?\s*$/.test(text) && boundary > sentenceStart && boundary < end) {
+        const later = segments.slice(i + 2).find(s => Number.isFinite(s.tOffsetMs) && start + s.tOffsetMs / 1000 > boundary);
+        const nextBoundary = later ? start + later.tOffsetMs / 1000 : end;
+        const duration = boundary - sentenceStart;
+        const wordBoundary = /\s$/.test(text) || /^\s/.test(next?.utf8 || '') || sentenceEnd(text);
+        const split = sentenceEnd(text) || (wordBoundary && (
+          duration >= 6 && clauseBoundary(text, next?.utf8 || '') ||
+          duration >= 12 || nextBoundary - sentenceStart > maxSpan));
+        if (split && boundary > sentenceStart && boundary < end) {
           rows.push({start: sentenceStart, end: boundary, text});
           sentenceStart = boundary;
           text = '';
@@ -58,10 +70,10 @@ const Captions = (() => {
       const previous = grouped.at(-1);
       // Short subtitle gaps are not necessarily sentence boundaries. Give an
       // unfinished sentence room to finish, without spanning long real pauses.
-      const finished = previous && /[.!?。？！]["”’)]?$/.test(previous.text);
+      const finished = previous && (sentenceEnd(previous.text) || previous.end - previous.start >= 6 && clauseBoundary(previous.text, row.text));
       const gap = previous ? row.start - previous.end : Infinity;
       const span = previous ? row.end - previous.start : Infinity;
-      const continuation = !finished && gap <= 1.5 && span <= 40;
+      const continuation = !finished && gap <= 1.5 && span <= maxSpan;
       // Completed sentences retain their own source start time, even when short.
       if (previous && continuation &&
           previous.text.length + row.text.length < 1100) {
