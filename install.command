@@ -11,6 +11,7 @@ case "$(uname -m)" in
   arm64|aarch64) arch=arm64 ;;
   *) echo '지원 CPU는 Intel/AMD 64비트와 ARM64입니다.' >&2; exit 1 ;;
 esac
+chmod +x "./bin/host-${os}-${arch}"
 "./bin/host-${os}-${arch}" install
 if [ "$os" = darwin ] && [ "${1:-}" != "--no-gui" ]; then
   echo 'Chrome에서 개발자 모드를 켜고 Finder에서 선택된 extension 폴더를 확장 관리 화면으로 끌어다 놓으세요.'

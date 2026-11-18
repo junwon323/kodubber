@@ -110,12 +110,12 @@ async function start({file, voice}) {
   hideCC();
   const port = chrome.runtime.connect({name: 'dub'});
   const s = session = {video, port, events: new AbortController(), wasMuted: video.muted, mutedByUs: false};
-  const speechRate = 1.05;
+  const speechRate = 1.07;
   const cache = new Map();
   let heartbeat = 0;
   let last = -1, pending = null, ready = false, talking = false;
   let buffering = true;
-  const startupSeconds = 90, aheadSeconds = 180;
+  const startupSeconds = 45, aheadSeconds = 180;
   let held = false, speechId = 0, speechStarted = 0, speechBoundary = Infinity;
   function hold() {
     if (!video.paused) {
@@ -166,8 +166,7 @@ async function start({file, voice}) {
     if (buffering && !talking) {
       if (coveredUntil < t + startupSeconds) {
         hold();
-        const seconds = Math.max(0, Math.floor(coveredUntil - t));
-        status = `미리 번역 중 · ${seconds}/${startupSeconds}초 준비 · 완료되면 재생합니다`;
+        status = '미리 번역 중 · 준비되면 자동으로 재생합니다';
         return;
       }
       buffering = false;

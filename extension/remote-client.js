@@ -36,8 +36,8 @@ async function officeTranslate(lines,signal){
 }
 async function translationMode(){return (await chrome.storage.local.get('translationMode')).translationMode==='office'?'office':'local';}
 async function localTranslate(lines){
- try{return await chrome.runtime.sendNativeMessage(HOST,{lines});}
- catch {throw Error('내 PC의 Codex 연결이 없습니다. 로컬 설치 파일을 실행하거나 사무실 모드를 선택하고 로그인하세요.');}
+ try{const result=await chrome.runtime.sendNativeMessage(HOST,{lines});if(result.error)throw Error(result.error);return result;}
+ catch (error) {throw Error('로컬 codex 연결 실패: 최신 ZIP을 전부 압축 해제한 뒤 Windows는 install-windows.cmd, macOS는 install.command, Linux는 sh ./install.command --no-gui를 실행하세요. CLI 설치·로그인과 상세 순서는 위의 로컬 codex 연결 방법을 확인하세요. 원인: '+(error.message||'Chrome 연결 오류'));}
 }
 let benchmarkBusy=false;
 chrome.runtime.onMessage.addListener((msg,sender,reply)=>{

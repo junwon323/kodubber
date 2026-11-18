@@ -21,7 +21,7 @@ test('worker selects the requested Korean voice and uses the teacher translation
   assert.equal(request.style, undefined);
   assert.equal(speech.extensionId, 'second');
   assert.equal(speech.lang, 'ko-KR');
-  assert.equal(speech.rate, 1.05);
+  assert.equal(speech.rate, 1.07);
 });
 
 test('old API key is removed on worker startup', async () => {

@@ -16,7 +16,7 @@ function speak(text, voice, onEvent) {
   chrome.tts.speak(text, {
     ...(voice.extensionId ? {extensionId: voice.extensionId} : {}),
     voiceName: voice.voiceName, lang: voice.lang,
-    rate: 1.05,
+    rate: 1.07,
     onEvent
   });
 }
