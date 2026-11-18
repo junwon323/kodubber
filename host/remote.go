@@ -58,7 +58,7 @@ type remoteServer struct {
 	sessions       map[string]remoteSession
 	attempts       map[string]attempts
 	globalAttempts attempts
-	active         map[string]bool
+	active         map[string]int
 	usage          map[string]usage
 	slots          chan struct{}
 	translate      func(context.Context, []byte) (captions, error)
@@ -159,7 +159,7 @@ func newRemoteServer(dir string, translate func(context.Context, []byte) (captio
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	s := &remoteServer{jobs: map[string]*remoteJob{}, dir: dir, sessions: map[string]remoteSession{}, attempts: map[string]attempts{}, active: map[string]bool{}, usage: map[string]usage{}, slots: make(chan struct{}, 2), translate: translate}
+	s := &remoteServer{jobs: map[string]*remoteJob{}, dir: dir, sessions: map[string]remoteSession{}, attempts: map[string]attempts{}, active: map[string]int{}, usage: map[string]usage{}, slots: make(chan struct{}, 3), translate: translate}
 	raw, err := os.ReadFile(filepath.Join(dir, "usage.json"))
 	if err == nil {
 		if err = json.Unmarshal(raw, &s.usage); err != nil {
@@ -268,7 +268,7 @@ func (s *remoteServer) login(w http.ResponseWriter, r *http.Request) {
 	expires := time.Now().Add(14 * 24 * time.Hour)
 	s.mu.Lock()
 	for k, v := range s.sessions {
-		if time.Now().After(v.Expires) || v.User == email {
+		if time.Now().After(v.Expires) {
 			delete(s.sessions, k)
 		}
 	}
@@ -402,10 +402,10 @@ func (s *remoteServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
-	if s.active[session.User] {
+	if s.active[session.User] >= 3 {
 		s.mu.Unlock()
 		w.Header().Set("Retry-After", "5")
-		apiError(w, 429, "이 계정의 번역이 이미 진행 중입니다.")
+		apiError(w, 429, "이 계정에서 번역 3개가 진행 중입니다. 잠시 뒤 다시 시작하세요.")
 		return
 	}
 	day := time.Now().UTC().Format("2006-01-02")
@@ -434,9 +434,17 @@ func (s *remoteServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		apiError(w, 503, "사용량을 기록하지 못했습니다.")
 		return
 	}
-	s.active[session.User] = true
+	s.active[session.User]++
 	s.mu.Unlock()
-	release := func() { s.mu.Lock(); delete(s.active, session.User); s.mu.Unlock(); <-s.slots }
+	release := func() {
+		s.mu.Lock()
+		s.active[session.User]--
+		if s.active[session.User] == 0 {
+			delete(s.active, session.User)
+		}
+		<-s.slots
+		s.mu.Unlock()
+	}
 	if body.Async {
 		jobID := randomString()
 		ctx, cancel := context.WithTimeout(context.Background(), 125*time.Second)

@@ -137,7 +137,7 @@ func TestLoginRateAndConcurrentAdmission(t *testing.T) {
 		t.Fatal("no throttle")
 	}
 	token := loginTest(t, s)
-	s.active["allowed@example.test"] = true
+	s.active["allowed@example.test"] = 3
 	if request(s, "POST", "/v1/translate", token, `{"lines":["Hi"]}`).Code != 429 || *count != 0 {
 		t.Fatal("parallel request accepted")
 	}
@@ -177,5 +177,82 @@ func TestAsyncJobPollingAndCancellation(t *testing.T) {
 	case <-ended:
 	case <-time.After(time.Second):
 		t.Fatal("translator did not cancel")
+	}
+}
+
+func TestMultipleDeviceSessionsAndThreeConcurrentJobs(t *testing.T) {
+	s, dir, _ := setupRemote(t)
+	tokens := []string{loginTest(t, s), loginTest(t, s), loginTest(t, s)}
+	restarted, err := newRemoteServer(dir, s.translate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, token := range tokens {
+		if request(restarted, "GET", "/v1/session", token, "").Code != 200 {
+			t.Fatal("device session invalidated by later login or restart")
+		}
+	}
+	s = restarted
+	started := make(chan struct{}, 4)
+	finish := make(chan struct{})
+	defer close(finish)
+	s.translate = func(ctx context.Context, data []byte) (captions, error) {
+		started <- struct{}{}
+		select {
+		case <-finish:
+			return captions{Lines: []string{"완료"}}, nil
+		case <-ctx.Done():
+			return captions{}, ctx.Err()
+		}
+	}
+	jobs := []string{}
+	for _, token := range tokens {
+		w := request(s, "POST", "/v1/translate", token, `{"lines":["Hi"],"async":true}`)
+		if w.Code != 202 {
+			t.Fatal("one of three devices rejected", w.Code, w.Body.String())
+		}
+		var body map[string]string
+		json.Unmarshal(w.Body.Bytes(), &body)
+		jobs = append(jobs, body["jobId"])
+	}
+	for range tokens {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("three jobs not running together")
+		}
+	}
+	if request(s, "POST", "/v1/translate", tokens[0], `{"lines":["Fourth"],"async":true}`).Code != 429 {
+		t.Fatal("fourth request admitted")
+	}
+	if request(s, "DELETE", "/v1/jobs/"+jobs[0], tokens[0], "").Code != 200 {
+		t.Fatal("cancel")
+	}
+	deadline := time.Now().Add(time.Second)
+	for {
+		s.mu.Lock()
+		active := s.active["allowed@example.test"]
+		s.mu.Unlock()
+		if active == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("slot not released")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if request(s, "POST", "/v1/translate", tokens[0], `{"lines":["Replacement"],"async":true}`).Code != 202 {
+		t.Fatal("released slot cannot be reused")
+	}
+	if request(s, "POST", "/v1/logout", tokens[0], `{}`).Code != 200 {
+		t.Fatal("logout")
+	}
+	if request(s, "GET", "/v1/session", tokens[0], "").Code != 401 {
+		t.Fatal("logged out device still accepted")
+	}
+	for _, token := range tokens[1:] {
+		if request(s, "GET", "/v1/session", token, "").Code != 200 {
+			t.Fatal("logout affected another device")
+		}
 	}
 }
