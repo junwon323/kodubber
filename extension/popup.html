@@ -2,6 +2,7 @@
 <html lang="ko"><meta charset="utf-8"><title>강의 한국어 더빙</title>
 <style>
 [hidden]{display:none!important}
+.speed-labels{display:flex;justify-content:space-between;font-size:12px}#speech-rate{accent-color:#184e46;cursor:pointer}
 body{font:14px system-ui,sans-serif;width:320px;padding:12px;color:#182634}
 h1{font-size:19px}label{display:block;margin:16px 0}input,select{margin-top:6px;width:100%}
 button{font:inherit;padding:7px 14px;border:1px solid #aab5bf;border-radius:6px;background:white}
@@ -32,7 +33,7 @@ button{font:inherit;padding:7px 14px;border:1px solid #aab5bf;border-radius:6px;
 </div>
 <label id="voice-picker" hidden>한국어 음성<select id="voice"></select></label>
 <p id="voice-note" hidden></p>
-<label>음성 속도<select id="speech-rate" disabled><option value="1.04">조금 느리게 · 1.04</option><option value="1.06" selected>기본 · 1.06</option><option value="1.08">조금 빠르게 · 1.08</option></select></label>
+<label>음성 속도<input id="speech-rate" type="range" min="0" max="2" step="1" value="1" aria-valuetext="기본" disabled><span class="speed-labels" aria-hidden="true"><span>조금 느리게</span><span>기본</span><span>조금 빠르게</span></span></label>
 <button id="toggle" aria-pressed="false" disabled>더빙 켜기</button>
 <output id="status" aria-live="polite"></output>
 <script src="remote-config.js"></script><script src="popup.js"></script></html>
