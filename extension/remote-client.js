@@ -39,7 +39,6 @@ async function localTranslate(lines){
  try{const result=await chrome.runtime.sendNativeMessage(HOST,{lines});if(result.error)throw Error(result.error);return result;}
  catch (error) {throw Error('로컬 codex 연결 실패: 최신 ZIP을 전부 압축 해제한 뒤 Windows는 install-windows.cmd, macOS는 install.command, Linux는 sh ./install.command --no-gui를 실행하세요. CLI 설치·로그인과 상세 순서는 위의 로컬 codex 연결 방법을 확인하세요. 원인: '+(error.message||'Chrome 연결 오류'));}
 }
-let benchmarkBusy=false;
 chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
  if(sender.id!==chrome.runtime.id||sender.url!==chrome.runtime.getURL('popup.html'))return;
  (async()=>{
@@ -55,20 +54,6 @@ chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
   if(msg.type==='office-state'){
    const s=(await chrome.storage.local.get('officeSession')).officeSession;
    return {mode:await translationMode(),email:s?.expiresAt>Date.now()?s.email:null};
-  }
-  if(msg.type==='compare-speed'){
-   if(owner)throw Error('더빙을 끈 뒤 속도를 비교해 주세요.');if(benchmarkBusy)throw Error('속도 비교가 이미 진행 중입니다.');
-   await officeSession();benchmarkBusy=true;
-   const lines=['Binary search halves the search range each time. It only works when the values are in sorted order.','A hash map uses additional memory to make lookups faster.'];
-   const measurements=[];
-   try{
-    for(let round=0;round<3;round++)for(const mode of round%2?['office','local']:['local','office']){
-     const started=performance.now();const result=mode==='local'?await localTranslate(lines):await officeTranslate(lines);
-     if(result.error)throw Error(result.error);if(result.lines?.length!==lines.length)throw Error('번역 결과 형식이 올바르지 않습니다.');
-     measurements.push({mode,round,totalMs:Math.round(performance.now()-started),serverMs:result.serverMs??null});
-    }
-    return {measurements};
-   }finally{benchmarkBusy=false;}
   }
   throw Error('지원하지 않는 요청입니다.');
  })().then(reply,error=>reply({error:error.message}));return true;

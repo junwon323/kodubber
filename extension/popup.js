@@ -53,29 +53,25 @@ document.querySelector('#login-form').onsubmit=async event=>{
 document.querySelector('#logout').onclick=async()=>{
  if(enabled)await command('stop');const result=await chrome.runtime.sendMessage({type:'office-logout'});document.querySelector('#login-status').textContent=result.error||'로그아웃되었습니다.';await refreshAccount();
 };
-document.querySelector('#compare').onclick=async()=>{
- const button=document.querySelector('#compare'),status=document.querySelector('#benchmark-status');button.disabled=true;status.textContent='각 모드 3회 측정 중입니다. 완료될 때까지 팝업을 열어 두세요.';
- try{
-  const result=await chrome.runtime.sendMessage({type:'compare-speed'});if(result.error)throw Error(result.error);
-  const median=mode=>result.measurements.filter(x=>x.mode===mode).map(x=>x.totalMs).sort((a,b)=>a-b)[1]/1000;
-  status.textContent=`번역 완료 중앙값: 로컬 codex ${median('local').toFixed(2)}초 / 준원사무실codex ${median('office').toFixed(2)}초. 네트워크·번역 대기를 포함하며 첫 음성 재생 시간은 아닙니다.`;
- }catch(error){status.textContent=error.message;}finally{button.disabled=false;}
-};
 refreshAccount();
 
 async function loadVoices() {
  const select=document.querySelector('#voice'), note=document.querySelector('#voice-note');
  try {
-  const voices=(await chrome.tts.getVoices()).filter(v=>/^ko(?:-|$)/i.test(v.lang||''));
+  const keyOf=v=>JSON.stringify([v.extensionId||'',v.voiceName,v.lang]);
+  const voices=[...new Map((await chrome.tts.getVoices()).filter(v=>/^ko(?:-|$)/i.test(v.lang||'')).map(v=>[keyOf(v),v])).values()];
   const saved=localStorage.getItem('voice')||'';
-  select.replaceChildren(new Option('기본 한국어 음성',''));
+  select.replaceChildren();
   for(const voice of voices) {
    const key=JSON.stringify([voice.extensionId||'',voice.voiceName,voice.lang]);
-   select.add(new Option(voice.voiceName+(voice.remote?' · 온라인':''),key));
+   select.add(new Option(voice.voiceName,key));
   }
-  select.value=voices.some(v=>JSON.stringify([v.extensionId||'',v.voiceName,v.lang])===saved)?saved:'';
-  note.textContent=voices.length?`사용 가능한 한국어 음성 ${voices.length}개. 선택은 다음 더빙부터 적용됩니다.`:'한국어 음성이 없습니다. 운영체제에 한국어 음성을 설치한 뒤 Chrome을 다시 시작하세요.';
- } catch {note.textContent='음성 목록을 가져오지 못했습니다. 확장을 다시 열어 주세요.';}
+  select.value=voices.some(v=>keyOf(v)===saved)?saved:(voices[0]?keyOf(voices[0]):'');
+  localStorage.setItem('voice',select.value);
+  document.querySelector('#voice-picker').hidden=voices.length<2;
+  note.hidden=voices.length>0;
+  note.textContent=voices.length?'':'한국어 음성이 없습니다. 운영체제에 한국어 음성을 추가해 주세요.';
+ } catch {note.hidden=false;note.textContent='음성 목록을 가져오지 못했습니다. 확장을 다시 열어 주세요.';}
 }
 document.querySelector('#voice').onchange=event=>localStorage.setItem('voice',event.target.value);
 loadVoices();
