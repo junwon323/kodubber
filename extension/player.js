@@ -113,7 +113,9 @@ async function start({file, voice}) {
   const speechRate = 1.05;
   const cache = new Map();
   let heartbeat = 0;
-  let last = -1, pending = false, ready = false, talking = false;
+  let last = -1, pending = null, ready = false, talking = false;
+  let buffering = true;
+  const startupSeconds = 90, aheadSeconds = 180;
   let held = false, speechId = 0, speechStarted = 0, speechBoundary = Infinity;
   function hold() {
     if (!video.paused) {
@@ -149,14 +151,27 @@ async function start({file, voice}) {
     const i = Captions.at(rows, t);
     const active = i >= 0 && t < rows[i].end;
     const next = active ? i : i + 1;
-    if (!pending && next < rows.length) {
-      let from = next;
-      while (from < rows.length && cache.has(from) && rows[from].start < t + 60) from++;
-      if (from < rows.length && !cache.has(from) && (from === next || rows[from].start < t + 60)) {
-        const batch = rows.slice(from, from + (cache.size ? 24 : 6));
-        pending = true;
-        port.postMessage({type: 'translate', start: from, lines: batch.map(r => r.text)});
+    // Contiguous cached coverage matters: a cached distant batch cannot fill a seek gap.
+    let missing = next;
+    while (missing < rows.length && cache.has(missing)) missing++;
+    const coveredUntil = missing < rows.length ? rows[missing].start : Infinity;
+    if (!pending && missing < rows.length && coveredUntil < t + 120) {
+      let end = missing;
+      while (end < rows.length && end - missing < 24 &&
+             rows[end].start < t + aheadSeconds && !cache.has(end)) end++;
+      const batch = rows.slice(missing, end);
+      pending = {start: missing, count: batch.length};
+      port.postMessage({type: 'translate', start: missing, lines: batch.map(r => r.text)});
+    }
+    if (buffering && !talking) {
+      if (coveredUntil < t + startupSeconds) {
+        hold();
+        const seconds = Math.max(0, Math.floor(coveredUntil - t));
+        status = `미리 번역 중 · ${seconds}/${startupSeconds}초 준비 · 완료되면 재생합니다`;
+        return;
       }
+      buffering = false;
+      resume();
     }
     if (talking) {
       if (Date.now() - speechStarted > 120000) return finish('음성 완료 신호를 받지 못했습니다. 다른 목소리를 선택해 주세요.');
@@ -173,8 +188,9 @@ async function start({file, voice}) {
       return;
     }
     if (!cache.has(i)) {
+      buffering = true;
       hold();
-      status = '번역 준비 중 · 영상 잠시 멈춤';
+      status = '다음 구간을 미리 번역 중 · 준비되면 이어집니다';
       return;
     }
     if (last === i) { resume(); return; }
@@ -205,8 +221,13 @@ async function start({file, voice}) {
       resume();
     }
     if (msg.type === 'result') {
+      if (!pending || msg.start !== pending.start) return;
+      if (!Array.isArray(msg.lines) || msg.lines.length !== pending.count ||
+          msg.lines.some(line => typeof line !== 'string' || !line.trim())) {
+        return finish('번역 결과가 누락되었습니다. 다시 시작해 주세요.');
+      }
       msg.lines.forEach((line, n) => cache.set(msg.start + n, line));
-      pending = false;
+      pending = null;
     }
     tick();
   });
@@ -215,10 +236,11 @@ async function start({file, voice}) {
     if (session === s) finish(reason || '연결 종료. 다시 시작해 주세요.');
   });
   video.addEventListener('pause', () => { if (!held) quiet(); }, {signal: s.events.signal});
-  video.addEventListener('seeking', () => { held = false; quiet(true); }, {signal: s.events.signal});
+  video.addEventListener('seeking', () => { buffering = true; quiet(true); }, {signal: s.events.signal});
   video.addEventListener('ended', () => { held = false; quiet(); }, {signal: s.events.signal});
   s.timer = setInterval(tick, 180);
-  status = '한국어 음성 확인 중';
+  hold();
+  status = '한국어 음성 확인 및 미리 번역 준비 중';
   port.postMessage({type: 'open', voice});
 }
 
