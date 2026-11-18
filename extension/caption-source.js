@@ -50,7 +50,7 @@
       const response = player?.getPlayerResponse?.() || window.ytInitialPlayerResponse;
       if (response?.videoDetails?.videoId !== msg.video) return reply({error: '플레이어 정보를 읽지 못했습니다. 영상 페이지를 새로고침해 주세요.'});
       const tracks = response.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-      if (!tracks.length) return reply({error: '이 영상에는 일반 자막과 자동 생성 자막이 없습니다. 시청자나 확장에서 자동 생성을 요청할 수 없습니다. 자막 파일이 있으면 선택해 주세요.'});
+      if (!tracks.length) return reply({error: '이 영상에는 일반 자막과 자동 생성 자막이 없습니다. 확장에서 새 자막 생성을 요청할 수 없습니다.', retryable:false});
       const selected = player?.getOption?.('captions', 'track');
       const track = tracks.find(t => t.vssId === selected?.vssId) ||
         tracks.find(t => t.kind !== 'asr') || tracks[0];
@@ -58,12 +58,12 @@
       if (!url || url.searchParams.get('v') !== msg.video) return reply({error: '자막 주소를 확인하지 못했습니다.'});
       // Preserve the signed URL. Captured player responses take precedence.
       const result = await originalFetch.call(window, url.href, {credentials: 'same-origin', signal: AbortSignal.timeout(8000)});
-      const raw = result.ok ? await result.text() : '';
-      if (!raw.trim() || raw.length > limit) return reply({error: '자막 응답이 비어 있습니다. CC를 껐다 켠 뒤 다시 더빙을 켜 주세요.'});
+      const raw = cache.get(msg.video) || (result.ok ? await result.text() : '');
+      if (!raw.trim() || raw.length > limit) return reply({error: '자막 응답이 비어 있습니다.'});
       remember(url, raw);
       reply({raw});
     } catch {
-      reply({error: '유튜브 자막 요청에 실패했습니다. CC를 껐다 켠 뒤 다시 시도해 주세요.'});
+      reply({error: '유튜브 자막 요청에 실패했습니다.'});
     }
   });
 })();

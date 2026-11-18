@@ -14,6 +14,38 @@ function enableCC(id) {
     ccLease.expected = 'true';
   }
 }
+async function refreshCC(id, version) {
+  const lease = ccLease;
+  const current = () => revision === version && ccLease === lease && lease &&
+    videoId() === id && lease.button.isConnected && !lease.button.disabled &&
+    lease.button.getAttribute('aria-pressed') === lease.expected;
+  if (!current()) return false;
+  if (lease.expected === 'true') {
+    lease.button.click(); lease.expected = 'false';
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  if (!current()) return false;
+  lease.button.click(); lease.expected = 'true';
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  return !!current();
+}
+async function collectCaptions(video, id, version) {
+  try { return await captions(video, id); }
+  catch (error) {
+    if (version !== revision || videoId() !== id) return [];
+    if (error.retryable === false) throw error;
+    status = '자막을 자동으로 다시 불러오는 중';
+    if (!await refreshCC(id, version)) {
+      if (version !== revision || videoId() !== id) return [];
+      throw Error('자막을 자동으로 켜지 못했습니다. 영상 페이지를 새로고침한 뒤 다시 더빙을 켜 주세요.');
+    }
+    try { return await captions(video, id); }
+    catch (retryError) {
+      if (retryError.retryable === false) throw retryError;
+      throw Error('자막을 자동으로 다시 불러왔지만 확보하지 못했습니다. 영상 페이지를 새로고침한 뒤 다시 더빙을 켜 주세요.');
+    }
+  }
+}
 function hideCC() {
   const lease = ccLease;
   if (!lease || videoId() !== lease.id || !lease.button.isConnected) return;
@@ -49,7 +81,7 @@ async function captions(v, id) {
           msg.request !== request || msg.video !== id) return;
       clearTimeout(timer);
       window.removeEventListener('message', receive);
-      if (msg.error) reject(Error(String(msg.error).slice(0, 300)));
+      if (msg.error) reject(Object.assign(Error(String(msg.error).slice(0, 300)), {retryable:msg.retryable !== false}));
       else if (typeof msg.raw === 'string' && msg.raw.length <= 2_000_000) resolve(msg.raw);
       else reject(Error('자막 응답 형식이 올바르지 않습니다.'));
     }
@@ -73,7 +105,7 @@ async function captions(v, id) {
     rows = Captions.json(data);
   }
   if (rows.length) return rows;
-  throw Error('자막 응답에 시간 정보가 없습니다. CC를 껐다 켠 뒤 다시 시도해 주세요.');
+  throw Error('자막 응답에 시간 정보가 없습니다.');
 }
 
 function finish(message) {
@@ -100,7 +132,7 @@ async function start({file, voice}) {
   const id = videoId();
   if (!video || !id) throw Error('유튜브 강의 영상 페이지를 열어 주세요.');
   enableCC(id);
-  const rows = Captions.group(file ? Captions.vtt(file) : await captions(video, id));
+  const rows = Captions.group(file ? Captions.vtt(file) : await collectCaptions(video, id, version));
   if (version !== revision) return;
   if (videoId() !== id) return finish('영상이 변경되어 종료했습니다.');
   if (!rows.length) throw Error('시간 정보가 있는 자막을 찾지 못했습니다.');
