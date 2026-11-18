@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "ko 더버",
-  "version": "0.12.18",
+  "name": "kodubber",
+  "version": "0.12.19",
   "description": "Codex로 유튜브 강의 자막을 번역하고 한국어 음성으로 재생합니다.",
   "key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE6Vsyxm0j1JaEaFEQhKU1gCnpVp5nbCL/UWwgkJFZcFJGFc0vK3//D/OklO9PSPrtrv0xDgTfxMFAe0dVOSPcxg==",
   "permissions": [
@@ -40,6 +40,6 @@
   ],
   "minimum_chrome_version": "116",
   "optional_host_permissions": [
-    "https://office.example/*"
+    "https://*/*"
   ]
 }

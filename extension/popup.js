@@ -55,34 +55,46 @@ command('status');
 setInterval(() => { if (!updating) command('status'); }, 800);
 
 const modeSelect=document.querySelector('#translation-mode');
-const officePermission={origins:[OFFICE_ORIGIN+'/*']};
+let savedOfficeOrigin='';
+let savingOfficeOrigin=false;
+const officePermission=()=>({origins:[normalizeOfficeOrigin(savedOfficeOrigin)+'/*']});
 let accountRevision=0;
 async function refreshAccount(){
  const revision=++accountRevision;
- const [state,granted]=await Promise.all([
-  chrome.runtime.sendMessage({type:'office-state'}),chrome.permissions.contains(officePermission)
- ]);
- if(revision!==accountRevision)return;
+ const [state,settings]=await Promise.all([chrome.runtime.sendMessage({type:'office-state'}),chrome.storage.local.get('officeOrigin')]);
+ const origin=settings.officeOrigin||'';
+ const granted=!!origin&&await chrome.permissions.contains({origins:[origin+'/*']});
+ if(revision!==accountRevision||savingOfficeOrigin)return;
+ if(savedOfficeOrigin!==origin||!document.querySelector('#office-address').value)document.querySelector('#office-address').value=origin;
+ savedOfficeOrigin=origin;
+ document.querySelector('#office-server').open=!granted;
  modeSelect.value=state.mode||'local';document.querySelector('#local-panel').hidden=modeSelect.value!=='local';document.querySelector('#office-panel').hidden=modeSelect.value!=='office';
  document.querySelector('#office-permission').hidden=granted;
+ document.querySelector('#office-address').disabled=enabled;
  document.querySelector('#account-status').textContent=!granted?'먼저 사무실 연결을 허용해 주세요.':state.email?state.email+' · 로그인됨':'허용된 계정으로 로그인해 주세요.';
  document.querySelector('#login-form').hidden=!granted||!!state.email;document.querySelector('#logout').hidden=!state.email;
 }
 document.querySelector('#office-permission').onclick=async()=>{
  const button=document.querySelector('#office-permission'),status=document.querySelector('#login-status');button.disabled=true;
  try {
-  const granted=await chrome.permissions.request(officePermission);
+  if(enabled)throw Error('더빙을 끈 뒤 서버 주소를 변경해 주세요.');
+  const origin=normalizeOfficeOrigin(document.querySelector('#office-address').value);
+  savingOfficeOrigin=true;
+  const save=chrome.storage.local.set({officeOrigin:origin,...(origin!==savedOfficeOrigin?{officeSession:null}:{})});
+  const permission=chrome.permissions.request({origins:[origin+'/*']});
+  await save;const granted=await permission;savingOfficeOrigin=false;
   status.textContent=granted?'':'연결을 허용해야 사무실 번역을 사용할 수 있습니다.';
   await refreshAccount();
- } catch(error){status.textContent=error.message;}finally{button.disabled=false;}
+ } catch(error){status.textContent=error.message;}finally{savingOfficeOrigin=false;button.disabled=false;}
 };
+document.querySelector('#office-address').oninput=()=>{document.querySelector('#office-permission').hidden=false;document.querySelector('#login-form').hidden=true;};
 chrome.permissions.onAdded.addListener(()=>refreshAccount());
 chrome.permissions.onRemoved.addListener(()=>refreshAccount());
 modeSelect.onchange=async()=>{await chrome.storage.local.set({translationMode:modeSelect.value});await refreshAccount();};
 document.querySelector('#login-form').onsubmit=async event=>{
  event.preventDefault();const button=document.querySelector('#login'),status=document.querySelector('#login-status');button.disabled=true;
  try{
-  if(!await chrome.permissions.contains(officePermission)){await refreshAccount();throw Error('먼저 사무실 연결 허용 버튼을 눌러 주세요.');}
+  if(normalizeOfficeOrigin(document.querySelector('#office-address').value)!==savedOfficeOrigin||!await chrome.permissions.contains(officePermission())){await refreshAccount();throw Error('먼저 사무실 연결 허용 버튼을 눌러 주세요.');}
   const result=await chrome.runtime.sendMessage({type:'office-login',email:document.querySelector('#email').value,password:document.querySelector('#password').value});
   if(result.error)throw Error(result.error);status.textContent='로그인되었습니다.';await refreshAccount();
  }catch(error){status.textContent=error.message;}finally{document.querySelector('#password').value='';button.disabled=false;}

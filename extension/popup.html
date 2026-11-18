@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko"><meta charset="utf-8"><title>ko 더버</title>
+<html lang="ko"><meta charset="utf-8"><title>kodubber</title>
 <style>
 [hidden]{display:none!important}
 .speed-labels{display:flex;justify-content:space-between;font-size:12px}#speech-rate{accent-color:#184e46;cursor:pointer}
@@ -8,20 +8,23 @@ h1{font-size:19px}label{display:block;margin:16px 0}input,select{margin-top:6px;
 button{font:inherit;padding:7px 14px;border:1px solid #aab5bf;border-radius:6px;background:white}
 #toggle{background:#184e46;color:white}#toggle[aria-pressed="true"]{background:#702f27}output{display:block;margin-top:12px;line-height:1.5}
 </style>
-<h1>ko 더버</h1>
+<h1>kodubber</h1>
 <p>일반·자동 생성 자막을 한국어로 읽습니다.</p>
 <label>번역 실행 위치<select id="translation-mode"><option value="local">로컬 codex</option><option value="office">준원사무실codex</option></select></label>
 <div id="local-panel">
 <details id="local-help"><summary>로컬 codex 연결 방법</summary>
 <ol>
 <li><a href="https://developers.openai.com/codex/cli" target="_blank" rel="noopener">Codex CLI 설치</a> 후 <code>codex</code>를 실행해 로그인합니다.</li>
-<li>배포 ZIP을 풀고 연결 파일을 한 번 실행합니다.<br>Windows: <code>install-windows.cmd</code><br>macOS: <code>install.command</code><br>Linux: <code>sh ./install.command --no-gui</code></li>
+<li>다운로드하거나 clone한 폴더에서 연결 파일을 한 번 실행합니다.<br>Windows: <code>install-windows.cmd</code><br>macOS: <code>install.command</code><br>Linux: <code>sh ./install.command --no-gui</code></li>
 </ol>
 </details>
 </div>
 <div id="office-panel" hidden>
 <p id="account-status">허용된 계정으로 로그인해 주세요.</p>
-<button id="office-permission" type="button" hidden>사무실 연결 허용</button>
+<details id="office-server"><summary>서버 주소</summary>
+<label>서버 IP 또는 도메인<input id="office-address" type="text" placeholder="https://서버주소" autocomplete="off" spellcheck="false"></label>
+<button id="office-permission" type="button">주소 저장 및 연결 허용</button>
+</details>
 <form id="login-form" hidden>
 <label>이메일<input id="email" type="email" autocomplete="username" required maxlength="254"></label>
 <label>비밀번호<input id="password" type="password" autocomplete="current-password" required maxlength="256"></label>
