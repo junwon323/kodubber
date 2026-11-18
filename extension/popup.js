@@ -1,5 +1,29 @@
 const output = document.querySelector('#status');
 const toggle = document.querySelector('#toggle');
+const providerSelect = document.querySelector('#translation-provider');
+const providers = {codex: 'Codex', claude: 'Claude Code', antigravity: 'Antigravity CLI', chrome: 'Chrome 번역'};
+let providerReady = false;
+
+async function loadProviders() {
+  let result;
+  try { result = await chrome.runtime.sendMessage({type: 'translation-providers'}); }
+  catch { result = null; }
+  const found = (result?.providers || []).filter(id => Object.hasOwn(providers, id) && id !== 'chrome');
+  const choices = found.length ? found : ['chrome'];
+  const saved = localStorage.getItem('translationProvider');
+  providerSelect.replaceChildren();
+  for (const id of choices) providerSelect.add(new Option(providers[id], id));
+  providerSelect.value = choices.includes(saved) ? saved : choices[0];
+  providerSelect.disabled = enabled || choices.length === 1;
+  const note = document.querySelector('#provider-note');
+  note.hidden = found.length > 0;
+  note.textContent = result?.connected
+    ? 'CLI가 없어 Chrome 번역을 사용합니다.'
+    : 'CLI를 사용하려면 아래 로컬 연결 파일을 한 번 실행하세요.';
+  providerReady = true;
+}
+providerSelect.onchange = () => localStorage.setItem('translationProvider', providerSelect.value);
+const providerLoad = loadProviders();
 let enabled = false;
 let sequence = 0;
 let updating = false;
@@ -28,12 +52,13 @@ async function command(type) {
   const request = ++sequence;
   try {
     const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-    const reply = await sendToVideo(tab, {type, voice: localStorage.getItem('voice') || ''});
+    const reply = await sendToVideo(tab, {type, voice: localStorage.getItem('voice') || '', provider: providerSelect.value});
     if (request !== sequence) return;
     enabled = reply.enabled;
     toggle.textContent = enabled ? '더빙 끄기' : '더빙 켜기';
     toggle.setAttribute('aria-pressed', String(enabled));
-    toggle.disabled = false;
+    toggle.disabled = !enabled && !providerReady;
+    providerSelect.disabled = !providerReady || enabled || providerSelect.options.length < 2;
     document.querySelector('#voice').disabled = enabled;
     output.textContent = reply.status;
     if (reply.status?.startsWith('로컬 연결 실패')) document.querySelector('#local-help').open = true;
@@ -50,7 +75,7 @@ toggle.onclick = async () => {
   try { await command(enabled ? 'stop' : 'start'); }
   finally { updating = false; }
 };
-command('status');
+providerLoad.then(() => command('status'));
 setInterval(() => { if (!updating) command('status'); }, 800);
 
 async function loadVoices() {

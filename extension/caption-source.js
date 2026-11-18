@@ -11,11 +11,11 @@
       return url.origin === location.origin && url.pathname === '/api/timedtext' ? url : null;
     } catch { return null; }
   }
-  function remember(url, raw) {
+  function remember(url, raw, language = url?.searchParams.get('tlang') || url?.searchParams.get('lang')) {
     const id = url?.searchParams.get('v');
     if (!id || typeof raw !== 'string' || !raw.trim() || raw.length > limit) return;
     cache.delete(id);
-    cache.set(id, raw);
+    cache.set(id, {raw, language});
     while (cache.size > 4) cache.delete(cache.keys().next().value);
   }
   window.fetch = async function(...args) {
@@ -46,7 +46,7 @@
       type: 'korean-dubber-caption-response', request: msg.request, video: msg.video, ...data
     }, location.origin);
     const cached = cache.get(msg.video);
-    if (cached) return reply({raw: cached});
+    if (cached) return reply(cached);
     try {
       const player = document.querySelector('#movie_player');
       const response = player?.getPlayerResponse?.() || window.ytInitialPlayerResponse;
@@ -60,10 +60,10 @@
       if (!url || url.searchParams.get('v') !== msg.video) return reply({error: '자막 주소를 확인하지 못했습니다.'});
       // Preserve the signed URL. Captured player responses take precedence.
       const result = await originalFetch.call(window, url.href, {credentials: 'same-origin', signal: AbortSignal.timeout(8000)});
-      const raw = cache.get(msg.video) || (result.ok ? await result.text() : '');
+      const raw = cache.get(msg.video)?.raw || (result.ok ? await result.text() : '');
       if (!raw.trim() || raw.length > limit) return reply({error: '자막 응답이 비어 있습니다.'});
-      remember(url, raw);
-      reply({raw});
+      remember(url, raw, track.languageCode);
+      reply({raw, language: track.languageCode});
     } catch {
       reply({error: '유튜브 자막 요청에 실패했습니다.'});
     }

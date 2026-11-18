@@ -3,7 +3,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/base64"
@@ -17,7 +16,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 	"unicode/utf8"
 )
 
@@ -34,8 +32,9 @@ type config struct {
 	Entrypoint string `json:",omitempty"`
 }
 type captions struct {
-	Lines []string `json:"lines"`
-	Style string   `json:"style,omitempty"`
+	Lines    []string `json:"lines"`
+	Style    string   `json:"style,omitempty"`
+	Provider string   `json:"provider,omitempty"`
 }
 
 func registerDir() (string, error) {
@@ -80,30 +79,7 @@ func writeJSON(path string, value any) error {
 	return os.Rename(tmp.Name(), path)
 }
 func install(dir string) error {
-	codex, err := exec.LookPath("codex")
-	if err != nil {
-		return errors.New("Codex CLI를 찾지 못했습니다. codex 명령을 사용할 수 있는 터미널에서 다시 실행하세요.")
-	}
-	codex, err = filepath.Abs(codex)
-	if err != nil {
-		return err
-	}
-	cfg := config{Codex: codex, Path: os.Getenv("PATH")}
-	if runtime.GOOS == "windows" && !strings.EqualFold(filepath.Ext(codex), ".exe") {
-		// Global npm installations expose a .cmd shim alongside node_modules.
-		cfg.Entrypoint = filepath.Join(filepath.Dir(codex), "node_modules", "@openai", "codex", "bin", "codex.js")
-		node, err := exec.LookPath("node.exe")
-		if err != nil {
-			return errors.New("npm으로 설치한 Codex의 node.exe를 찾을 수 없습니다.")
-		}
-		if _, err := os.Stat(cfg.Entrypoint); err != nil {
-			return errors.New("Windows용 codex.exe 또는 npm 전역 Codex 설치를 확인하세요.")
-		}
-		cfg.Codex, err = filepath.Abs(node)
-		if err != nil {
-			return err
-		}
-	}
+	cfg := config{Path: os.Getenv("PATH")}
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -161,65 +137,6 @@ func parse(data []byte, maxLines, maxChars int) (captions, error) {
 	}
 	return c, nil
 }
-func translate(dir string, data []byte) (captions, error) {
-	return translateContext(context.Background(), dir, data)
-}
-func translateContext(parent context.Context, dir string, data []byte) (captions, error) {
-	c, err := parse(data, 24, 1200)
-	if err != nil {
-		return c, err
-	}
-	// Legacy style values now use the selected teacher tone as well.
-	switch c.Style {
-	case "", "lecture", "friendly", "concise":
-	default:
-		return c, errors.New("지원하지 않는 번역 스타일입니다.")
-	}
-	raw, err := os.ReadFile(filepath.Join(dir, name+".config"))
-	if err != nil {
-		return c, errors.New("운영체제에 맞는 설치 파일을 다시 실행하세요.")
-	}
-	var cfg config
-	if err = json.Unmarshal(raw, &cfg); err != nil || !filepath.IsAbs(cfg.Codex) {
-		return c, errors.New("설치 정보를 읽지 못했습니다.")
-	}
-	tmp, err := os.MkdirTemp("", "korean-dubber-*")
-	if err != nil {
-		return c, err
-	}
-	defer os.RemoveAll(tmp)
-	if err = os.WriteFile(filepath.Join(tmp, "schema"), []byte(schema), 0600); err != nil {
-		return c, err
-	}
-	ctx, cancel := context.WithTimeout(parent, 120*time.Second)
-	defer cancel()
-	args := []string{"exec", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--sandbox", "read-only", "--disable", "shell_tool", "--disable", "apps", "--disable", "plugins", "--disable", "hooks", "-c", `web_search="disabled"`, "--model", "gpt-6.1-terra", "-c", `model_reasoning_effort="medium"`, "--output-schema", "schema", "-o", "result", "-"}
-	if cfg.Entrypoint != "" {
-		args = append([]string{cfg.Entrypoint}, args...)
-	}
-	cmd := exec.CommandContext(ctx, cfg.Codex, args...)
-	lines, _ := json.Marshal(c.Lines)
-	cmd.Dir = tmp
-	cmd.Env = append(os.Environ(), "PATH="+cfg.Path)
-	cmd.Stdin = io.MultiReader(strings.NewReader(translationPrompt+"\n"), bytes.NewReader(lines))
-	if err = cmd.Run(); err != nil {
-		return c, errors.New("Codex 번역 실패. 로그인, 네트워크 및 CLI 버전을 확인하세요.")
-	}
-	file, err := os.Open(filepath.Join(tmp, "result"))
-	if err != nil {
-		return c, err
-	}
-	defer file.Close()
-	raw, err = io.ReadAll(io.LimitReader(file, limit+1))
-	if err != nil || len(raw) > limit {
-		return c, errors.New("번역 결과를 읽지 못했습니다.")
-	}
-	result, err := parse(raw, len(c.Lines), 2400)
-	if err != nil || result.Style != "" || len(result.Lines) != len(c.Lines) {
-		return c, errors.New("번역 결과가 자막 구간과 일치하지 않습니다.")
-	}
-	return result, nil
-}
 func serve(dir string) error {
 	var size uint32
 	if err := binary.Read(os.Stdin, binary.NativeEndian, &size); err != nil {
@@ -232,7 +149,7 @@ func serve(dir string) error {
 	} else {
 		data := make([]byte, size)
 		if _, err = io.ReadFull(os.Stdin, data); err == nil {
-			result, err = translate(dir, data)
+			result, err = handleMessage(dir, data)
 		}
 	}
 	if err != nil {

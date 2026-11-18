@@ -10,10 +10,12 @@ button{font:inherit;padding:7px 14px;border:1px solid #aab5bf;border-radius:6px;
 </style>
 <h1>kodubber</h1>
 <p>일반·자동 생성 자막을 한국어로 읽습니다.</p>
+<label>번역 엔진<select id="translation-provider" disabled></select></label>
+<p id="provider-note" hidden></p>
 <div id="local-panel">
 <details id="local-help"><summary>로컬 연결 방법</summary>
 <ol>
-<li><a href="https://developers.openai.com/codex/cli" target="_blank" rel="noopener">Codex CLI 설치</a> 후 <code>codex</code>를 실행해 로그인합니다.</li>
+<li>Codex, Claude Code, Antigravity CLI 중 원하는 도구를 설치하고 로그인합니다.</li>
 <li>다운로드하거나 clone한 폴더에서 연결 파일을 한 번 실행합니다.<br>Windows: <code>install-windows.cmd</code><br>macOS: <code>install.command</code><br>Linux: <code>sh ./install.command --no-gui</code></li>
 </ol>
 </details>

@@ -2,11 +2,30 @@ importScripts('speech-text.js');
 const HOST = 'com.codex.korean_dubber';
 let owner = null;
 
-async function localTranslate(lines){
- try{const result=await chrome.runtime.sendNativeMessage(HOST,{lines});if(result.error)throw Error(result.error);return result;}
- catch (error) {throw Error('로컬 연결 실패: 다운로드하거나 clone한 폴더에서 Windows는 install-windows.cmd, macOS는 install.command, Linux는 sh ./install.command --no-gui를 실행하세요. CLI 설치·로그인과 상세 순서는 위의 로컬 연결 방법을 확인하세요. 원인: '+(error.message||'Chrome 연결 오류'));}
+const cliProviders = ['codex', 'claude', 'antigravity'];
+
+async function localTranslate(lines, provider) {
+  let result;
+  try {
+    result = await chrome.runtime.sendNativeMessage(HOST, {lines, provider});
+  } catch {
+    throw Error('로컬 연결 실패. 확장에 표시된 연결 파일을 다시 실행해 주세요.');
+  }
+  if (result.error) throw Error(result.error);
+  return result;
 }
 
+chrome.runtime.onMessage?.addListener((msg, sender, reply) => {
+  if (msg.type !== 'translation-providers' || sender.id !== chrome.runtime.id ||
+      sender.url !== chrome.runtime.getURL('popup.html')) return;
+  chrome.runtime.sendNativeMessage(HOST, {action: 'providers'})
+    .then(result => reply({
+      connected: Array.isArray(result.providers),
+      providers: Array.isArray(result.providers) ? cliProviders.filter(id => result.providers.includes(id)) : [],
+    }))
+    .catch(() => reply({connected: false, providers: []}));
+  return true;
+});
 
 // Remove credentials and model cache retained by earlier versions.
 for (const key of ['geminiApiKey','officeSession','officeOrigin','translationMode']) chrome.storage?.local.remove(key).catch(() => {});
@@ -29,7 +48,7 @@ function speak(text, voice, rate, onEvent) {
 chrome.runtime.onConnect.addListener(port => {
   if (port.name !== 'dub' || port.sender?.frameId !== 0 ||
       !port.sender.url?.startsWith('https://www.youtube.com/')) return;
-  let busy = false, closed = false, voice;
+  let busy = false, closed = false, voice, provider;
   let formulaSeen = new Set(), speechGeneration = 0;
   const send = msg => {if (!closed) port.postMessage(msg);};
   const current = {send};
@@ -46,15 +65,16 @@ chrome.runtime.onConnect.addListener(port => {
         chrome.tts.stop();
         formulaSeen.clear();
         speechGeneration++;
+        provider = msg.provider || 'codex';
+        if (provider !== 'chrome' && !cliProviders.includes(provider)) throw Error('지원하지 않는 번역 엔진입니다.');
         voice = await selectVoice(msg.voice);
         if (closed || owner !== current) return;
         send({type: 'ready'});
       } else if (owner === current) {
-        if (msg.type === 'translate' && !busy) {
+        if (msg.type === 'translate' && provider !== 'chrome' && !busy) {
           busy = true;
           try {
-            const result = await localTranslate(msg.lines);
-            if (result.error) throw Error(result.error);
+            const result = await localTranslate(msg.lines, provider);
             send({type: 'result', start: msg.start, lines: result.lines});
           } finally {busy = false;}
         } else if (msg.type === 'speak') {

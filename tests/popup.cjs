@@ -3,10 +3,10 @@ const source=fs.readFileSync(path.join(__dirname,'../extension/popup.js'),'utf8'
 const html=fs.readFileSync(path.join(__dirname,'../extension/popup.html'),'utf8');
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 function popup(state){
- const nodes=Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(m=>['#'+m[1],{value:'',hidden:true,setAttribute(){},replaceChildren(){},add(){}}]));
+ const nodes=Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(m=>['#'+m[1],{value:'',hidden:true,setAttribute(){},options:[],replaceChildren(){this.options=[];},add(option){this.options.push(option);}}]));
  const calls=[];
- const chrome={tabs:{query:async()=>[{id:1,url:state.url||'https://www.youtube.com/watch?v=test'}],sendMessage:async()=>{if(state.missing)throw Error('Could not establish connection. Receiving end does not exist.');return {enabled:false,status:'대기 중'};}},scripting:{executeScript:async args=>{calls.push(args.files.join(','));if(args.files.includes('player.js'))state.missing=false;}},tts:{getVoices:async()=>[]},storage:{local:{get:async()=>({speechRate:state.speechRate}),set:async data=>Object.assign(state,data)}}};
- const c={chrome,document:{querySelector:s=>nodes[s]},localStorage:{getItem:()=>'',setItem(){}},setInterval(){},URL};
+ const chrome={runtime:{sendMessage:async()=>state.discovery},tabs:{query:async()=>[{id:1,url:state.url||'https://www.youtube.com/watch?v=test'}],sendMessage:async()=>{if(state.missing)throw Error('Could not establish connection. Receiving end does not exist.');return {enabled:false,status:'대기 중'};}},scripting:{executeScript:async args=>{calls.push(args.files.join(','));if(args.files.includes('player.js'))state.missing=false;}},tts:{getVoices:async()=>[]},storage:{local:{get:async()=>({speechRate:state.speechRate}),set:async data=>Object.assign(state,data)}}};
+ const c={chrome,Option:function(text,value){Object.assign(this,{text,value});},document:{querySelector:s=>nodes[s]},localStorage:{getItem:()=>'',setItem(){}},setInterval(){},URL};
  vm.createContext(c);vm.runInContext(source,c);return {nodes,calls};
 }
 test('speech speed defaults to normal and is saved across popup reopening',async()=>{
@@ -29,4 +29,13 @@ test('automatic reconnection never injects into an unrelated website',async()=>{
  const f=popup({missing:true,url:'https://example.com'});await flush();
  assert.equal(f.calls.includes('caption-source.js'),false);
  assert.match(f.nodes['#status'].textContent,/유튜브 영상 탭/);
+});
+
+test('provider selection shows detected CLIs or Chrome only', async () => {
+ const detected = popup({discovery:{connected:true,providers:['claude','antigravity']}});
+ const fallback = popup({discovery:{connected:true,providers:[]}});
+ await flush();
+ assert.deepEqual(detected.nodes['#translation-provider'].options.map(o=>o.value),['claude','antigravity']);
+ assert.deepEqual(fallback.nodes['#translation-provider'].options.map(o=>o.value),['chrome']);
+ assert.equal(fallback.nodes['#toggle'].disabled,false);
 });
