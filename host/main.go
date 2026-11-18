@@ -251,12 +251,10 @@ func serve(dir string) error {
 func main() {
 	dir, err := registerDir()
 	if err == nil {
-		if len(os.Args) > 1 && os.Args[1] == "server" {
-			err = runServer(dir)
-		} else if len(os.Args) > 1 && os.Args[1] == "user" {
-			err = manageUser(os.Args[2:])
-		} else if len(os.Args) == 2 && os.Args[1] == "install" {
+		if len(os.Args) == 2 && os.Args[1] == "install" {
 			err = install(dir)
+		} else if len(os.Args) > 1 && (os.Args[1] == "server" || os.Args[1] == "user") {
+			err = fmt.Errorf("cloud server mode has been removed")
 		} else {
 			err = serve(dir)
 		}

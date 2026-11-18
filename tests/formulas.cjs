@@ -13,7 +13,7 @@ test('formula pronunciation keeps meaning, notation, space and repeat state',()=
 test('only completed speech marks formulas as explained; seek and reopen reset',async()=>{
  let connect,receive;const spoken=[];
  const chrome={runtime:{onMessage:{addListener(){}},onConnect:{addListener:f=>connect=f}},tts:{stop(){},getVoices:async()=>[{voiceName:'한국어',lang:'ko-KR'}],speak:(text,options)=>spoken.push({text,options})}};
- vm.runInNewContext(helper+'\n'+fs.readFileSync(path.join(__dirname,'../extension/background.js'),'utf8'),{chrome,importScripts(){}, translationMode:async()=>"local", localTranslate:lines=>chrome.runtime.sendNativeMessage("test",{lines}), AbortController});
+ vm.runInNewContext(helper+'\n'+fs.readFileSync(path.join(__dirname,'../extension/background.js'),'utf8'),{chrome,importScripts(){}, AbortController});
  connect({name:'dub',sender:{frameId:0,url:'https://www.youtube.com/watch'},onMessage:{addListener:f=>receive=f},onDisconnect:{addListener(){}},postMessage(){}});
  const say=()=>receive({type:'speak',text:'O(1) 시간에 조회합니다.',rate:1,speechId:1});
  await receive({type:'open'});await say();assert.match(spoken.at(-1).text,/상수 시간/);

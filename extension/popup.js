@@ -34,7 +34,6 @@ async function command(type) {
     toggle.textContent = enabled ? '더빙 끄기' : '더빙 켜기';
     toggle.setAttribute('aria-pressed', String(enabled));
     toggle.disabled = false;
-    document.querySelector('#translation-mode').disabled = enabled;
     document.querySelector('#voice').disabled = enabled;
     output.textContent = reply.status;
     if (reply.status?.startsWith('로컬 연결 실패')) document.querySelector('#local-help').open = true;
@@ -53,56 +52,6 @@ toggle.onclick = async () => {
 };
 command('status');
 setInterval(() => { if (!updating) command('status'); }, 800);
-
-const modeSelect=document.querySelector('#translation-mode');
-let savedOfficeOrigin='';
-let savingOfficeOrigin=false;
-const officePermission=()=>({origins:[normalizeOfficeOrigin(savedOfficeOrigin)+'/*']});
-let accountRevision=0;
-async function refreshAccount(){
- const revision=++accountRevision;
- const [state,settings]=await Promise.all([chrome.runtime.sendMessage({type:'office-state'}),chrome.storage.local.get('officeOrigin')]);
- const origin=settings.officeOrigin||'';
- const granted=!!origin&&await chrome.permissions.contains({origins:[origin+'/*']});
- if(revision!==accountRevision||savingOfficeOrigin)return;
- if(savedOfficeOrigin!==origin||!document.querySelector('#office-address').value)document.querySelector('#office-address').value=origin;
- savedOfficeOrigin=origin;
- document.querySelector('#office-server').open=!granted;
- modeSelect.value=state.mode||'local';document.querySelector('#local-panel').hidden=modeSelect.value!=='local';document.querySelector('#office-panel').hidden=modeSelect.value!=='office';
- document.querySelector('#office-permission').hidden=granted;
- document.querySelector('#office-address').disabled=enabled;
- document.querySelector('#account-status').textContent=!granted?'먼저 클라우드 연결을 허용해 주세요.':state.email?state.email+' · 로그인됨':'허용된 계정으로 로그인해 주세요.';
- document.querySelector('#login-form').hidden=!granted||!!state.email;document.querySelector('#logout').hidden=!state.email;
-}
-document.querySelector('#office-permission').onclick=async()=>{
- const button=document.querySelector('#office-permission'),status=document.querySelector('#login-status');button.disabled=true;
- try {
-  if(enabled)throw Error('더빙을 끈 뒤 서버 주소를 변경해 주세요.');
-  const origin=normalizeOfficeOrigin(document.querySelector('#office-address').value);
-  savingOfficeOrigin=true;
-  const save=chrome.storage.local.set({officeOrigin:origin,...(origin!==savedOfficeOrigin?{officeSession:null}:{})});
-  const permission=chrome.permissions.request({origins:[origin+'/*']});
-  await save;const granted=await permission;savingOfficeOrigin=false;
-  status.textContent=granted?'':'연결을 허용해야 클라우드 번역을 사용할 수 있습니다.';
-  await refreshAccount();
- } catch(error){status.textContent=error.message;}finally{savingOfficeOrigin=false;button.disabled=false;}
-};
-document.querySelector('#office-address').oninput=()=>{document.querySelector('#office-permission').hidden=false;document.querySelector('#login-form').hidden=true;};
-chrome.permissions.onAdded.addListener(()=>refreshAccount());
-chrome.permissions.onRemoved.addListener(()=>refreshAccount());
-modeSelect.onchange=async()=>{await chrome.storage.local.set({translationMode:modeSelect.value});await refreshAccount();};
-document.querySelector('#login-form').onsubmit=async event=>{
- event.preventDefault();const button=document.querySelector('#login'),status=document.querySelector('#login-status');button.disabled=true;
- try{
-  if(normalizeOfficeOrigin(document.querySelector('#office-address').value)!==savedOfficeOrigin||!await chrome.permissions.contains(officePermission())){await refreshAccount();throw Error('먼저 주소 저장 및 연결 허용 버튼을 눌러 주세요.');}
-  const result=await chrome.runtime.sendMessage({type:'office-login',email:document.querySelector('#email').value,password:document.querySelector('#password').value});
-  if(result.error)throw Error(result.error);status.textContent='로그인되었습니다.';await refreshAccount();
- }catch(error){status.textContent=error.message;}finally{document.querySelector('#password').value='';button.disabled=false;}
-};
-document.querySelector('#logout').onclick=async()=>{
- if(enabled)await command('stop');const result=await chrome.runtime.sendMessage({type:'office-logout'});document.querySelector('#login-status').textContent=result.error||'로그아웃되었습니다.';await refreshAccount();
-};
-refreshAccount();
 
 async function loadVoices() {
  const select=document.querySelector('#voice'), note=document.querySelector('#voice-note');

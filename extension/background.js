@@ -1,9 +1,15 @@
-importScripts('speech-text.js', 'remote-config.js', 'remote-client.js');
+importScripts('speech-text.js');
 const HOST = 'com.codex.korean_dubber';
 let owner = null;
 
+async function localTranslate(lines){
+ try{const result=await chrome.runtime.sendNativeMessage(HOST,{lines});if(result.error)throw Error(result.error);return result;}
+ catch (error) {throw Error('로컬 연결 실패: 다운로드하거나 clone한 폴더에서 Windows는 install-windows.cmd, macOS는 install.command, Linux는 sh ./install.command --no-gui를 실행하세요. CLI 설치·로그인과 상세 순서는 위의 로컬 연결 방법을 확인하세요. 원인: '+(error.message||'Chrome 연결 오류'));}
+}
+
+
 // Remove credentials and model cache retained by earlier versions.
-chrome.storage?.local.remove('geminiApiKey').catch(() => {});
+for (const key of ['geminiApiKey','officeSession','officeOrigin','translationMode']) chrome.storage?.local.remove(key).catch(() => {});
 if (typeof caches !== 'undefined') caches.delete('supertonic-3-aafc6e32').catch(() => {});
 
 async function selectVoice(key) {
@@ -23,14 +29,12 @@ function speak(text, voice, rate, onEvent) {
 chrome.runtime.onConnect.addListener(port => {
   if (port.name !== 'dub' || port.sender?.frameId !== 0 ||
       !port.sender.url?.startsWith('https://www.youtube.com/')) return;
-  let busy = false, closed = false, voice, mode;
-  let translationController;
+  let busy = false, closed = false, voice;
   let formulaSeen = new Set(), speechGeneration = 0;
   const send = msg => {if (!closed) port.postMessage(msg);};
   const current = {send};
   port.onDisconnect.addListener(() => {
     closed = true;
-    translationController?.abort();
     speechGeneration++;
     if (owner === current) {owner = null; chrome.tts.stop();}
   });
@@ -42,11 +46,6 @@ chrome.runtime.onConnect.addListener(port => {
         chrome.tts.stop();
         formulaSeen.clear();
         speechGeneration++;
-        mode = await translationMode();
-        if (mode === 'office') {
-          const session = await officeSession();
-          await officeRequest('/v1/session', {token:session.token});
-        }
         voice = await selectVoice(msg.voice);
         if (closed || owner !== current) return;
         send({type: 'ready'});
@@ -54,8 +53,7 @@ chrome.runtime.onConnect.addListener(port => {
         if (msg.type === 'translate' && !busy) {
           busy = true;
           try {
-            translationController = new AbortController();
-            const result = mode === 'office' ? await officeTranslate(msg.lines, translationController.signal) : await localTranslate(msg.lines);
+            const result = await localTranslate(msg.lines);
             if (result.error) throw Error(result.error);
             send({type: 'result', start: msg.start, lines: result.lines});
           } finally {busy = false;}
