@@ -92,3 +92,18 @@ async function loadVoices() {
 }
 document.querySelector('#voice').onchange=event=>localStorage.setItem('voice',event.target.value);
 loadVoices();
+
+const rateSelect=document.querySelector('#speech-rate');
+(async()=>{
+ try {
+  const {speechRate}=await chrome.storage.local.get('speechRate');
+  rateSelect.value=String([1.04,1.06,1.08].includes(speechRate)?speechRate:1.06);
+  rateSelect.disabled=false;
+ } catch {output.textContent='속도 설정을 불러오지 못했습니다. 확장을 다시 열어 주세요.';}
+})();
+rateSelect.onchange=async()=>{
+ const value=Number(rateSelect.value);
+ if(![1.04,1.06,1.08].includes(value))return;
+ try {await chrome.storage.local.set({speechRate:value});}
+ catch {output.textContent='속도를 저장하지 못했습니다. 다시 선택해 주세요.';}
+};

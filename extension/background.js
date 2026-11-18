@@ -12,11 +12,11 @@ async function selectVoice(key) {
   if (!voice) throw Error('Chrome에서 사용할 수 있는 한국어 음성이 없습니다. 운영체제의 한국어 음성을 설치한 뒤 Chrome을 다시 시작하세요.');
   return voice;
 }
-function speak(text, voice, onEvent) {
+function speak(text, voice, rate, onEvent) {
   chrome.tts.speak(text, {
     ...(voice.extensionId ? {extensionId: voice.extensionId} : {}),
     voiceName: voice.voiceName, lang: voice.lang,
-    rate: 1.05,
+    rate,
     onEvent
   });
 }
@@ -61,9 +61,12 @@ chrome.runtime.onConnect.addListener(port => {
           } finally {busy = false;}
         } else if (msg.type === 'speak') {
           const generation = ++speechGeneration;
+          const settings = await chrome.storage?.local.get?.('speechRate');
+          if (closed || owner !== current || generation !== speechGeneration) return;
+          const rate = [1.04,1.06,1.08].includes(settings?.speechRate) ? settings.speechRate : 1.06;
           const pendingSeen = new Set(formulaSeen);
           const spokenText = speechText(msg.text, pendingSeen);
-          speak(spokenText, voice, event => {
+          speak(spokenText, voice, rate, event => {
             if (closed || owner !== current || generation !== speechGeneration) return;
             if (event.type === 'error') send({error: event.errorMessage || '음성 재생 실패'});
             if (event.type === 'start') send({type: 'speech-start', speechId: msg.speechId});

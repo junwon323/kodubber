@@ -107,7 +107,6 @@ async function start({file, voice}) {
   hideCC();
   const port = chrome.runtime.connect({name: 'dub'});
   const s = session = {video, port, events: new AbortController(), wasMuted: video.muted, mutedByUs: false};
-  const speechRate = 1.05;
   const cache = new Map();
   let heartbeat = 0;
   let last = -1, pending = null, ready = false, talking = false;
@@ -198,7 +197,7 @@ async function start({file, voice}) {
     talking = true;
     speechStarted = Date.now();
     speechBoundary = rows[i + 1]?.start ?? rows[i].end;
-    port.postMessage({type: 'speak', text, rate: speechRate, speechId: ++speechId});
+    port.postMessage({type: 'speak', text, speechId: ++speechId});
     resume();
     status = '한국어 더빙 중';
   }

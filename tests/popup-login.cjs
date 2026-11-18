@@ -5,7 +5,7 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve));
 function popup(state){
  const nodes=Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(m=>['#'+m[1],{value:'',hidden:true,setAttribute(){},replaceChildren(){},add(){}}]));
  const calls=[];let added,removed;
- const chrome={tabs:{query:async()=>[{id:1}],sendMessage:async()=>({enabled:false,status:'대기 중'})},tts:{getVoices:async()=>[]},storage:{local:{set:async()=>{}}},permissions:{contains:async()=>state.granted,request:async()=>{calls.push('permission');state.granted=state.allow;return state.granted;},onAdded:{addListener:f=>added=f},onRemoved:{addListener:f=>removed=f}},runtime:{sendMessage:async msg=>{calls.push(msg.type);if(msg.type==='office-login'){state.email=msg.email;return {email:state.email};}return {mode:'office',email:state.email};}}};
+ const chrome={tabs:{query:async()=>[{id:1}],sendMessage:async()=>({enabled:false,status:'대기 중'})},tts:{getVoices:async()=>[]},storage:{local:{get:async()=>({speechRate:state.speechRate}),set:async data=>Object.assign(state,data)}},permissions:{contains:async()=>state.granted,request:async()=>{calls.push('permission');state.granted=state.allow;return state.granted;},onAdded:{addListener:f=>added=f},onRemoved:{addListener:f=>removed=f}},runtime:{sendMessage:async msg=>{calls.push(msg.type);if(msg.type==='office-login'){state.email=msg.email;return {email:state.email};}return {mode:'office',email:state.email};}}};
  const c={chrome,document:{querySelector:s=>nodes[s]},localStorage:{getItem:()=>'',setItem(){}},setInterval(){},OFFICE_ORIGIN:'https://office.example'};
  vm.createContext(c);vm.runInContext(source,c);return {nodes,calls,added:()=>added(),removed:()=>removed()};
 }
@@ -25,4 +25,14 @@ test('permission precedes credentials, survives reopening, and login never promp
 test('denied permission keeps credentials hidden and sends no login',async()=>{
  const f=popup({granted:false,allow:false});await flush();await f.nodes['#office-permission'].onclick();
  assert.equal(f.nodes['#login-form'].hidden,true);assert.equal(f.calls.includes('office-login'),false);
+});
+
+test('speech speed defaults to normal and is saved across popup reopening',async()=>{
+ const state={granted:true};let f=popup(state);await flush();
+ assert.equal(f.nodes['#speech-rate'].value,'1.06');assert.equal(f.nodes['#speech-rate'].disabled,false);
+ for(const speed of ['1.04','1.08','1.06']){
+  f.nodes['#speech-rate'].value=speed;await f.nodes['#speech-rate'].onchange();
+  assert.equal(state.speechRate,Number(speed));f=popup(state);await flush();
+  assert.equal(f.nodes['#speech-rate'].value,speed);
+ }
 });
